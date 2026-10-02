@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Tier A Retailer Tracker</string>
+    <string name="notification_channel_name">Field Rep Duty Tracking</string>
+    <string name="notification_channel_desc">Continuous background GPS telemetry for TA/DA mileage and speed safety audits</string>
+</resources>

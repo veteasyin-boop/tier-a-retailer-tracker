@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.TierATracker" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/truein_bg_dark</item>
+        <item name="android:navigationBarColor">@color/truein_bg_dark</item>
+        <item name="android:windowBackground">@color/truein_bg_dark</item>
+    </style>
+</resources>
