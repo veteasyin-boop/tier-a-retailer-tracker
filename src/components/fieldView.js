@@ -1,5 +1,6 @@
 import { ASSISTANTS, STATUS_OPTIONS, POTENTIAL_FOR, POTENTIAL_SELL } from '../data/assistants.js';
 import { storage } from '../services/storage.js';
+import { idbStorage } from '../services/idbStorage.js';
 import { auth } from '../services/auth.js';
 import { openRetailerModal } from './modal.js';
 import { showToast } from './toast.js';
@@ -823,6 +824,10 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
       <button type="button" class="btn ${activeSubTab === 'tour' ? 'btn-primary' : 'btn-secondary'} btn-sm" id="btnSubTabTour" style="padding: 9px 16px; font-weight: 700; white-space: nowrap; border-radius: var(--radius-pill);">
         📋 Today's Tour (${todayTourRows.length})
       </button>
+      <button type="button" class="btn ${activeSubTab === 'followups' ? 'btn-primary' : 'btn-secondary'} btn-sm" id="btnSubTabFollowups" style="padding: 9px 16px; font-weight: 700; white-space: nowrap; border-radius: var(--radius-pill); position: relative;">
+        📅 Due Follow-ups (${storage.getUpcomingFollowUps(repInfo.name).length})
+        ${storage.getUpcomingFollowUps(repInfo.name).some(f => f.status === 'overdue' || f.status === 'today') ? `<span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); margin-left: 4px;"></span>` : ''}
+      </button>
       <button type="button" class="btn ${activeSubTab === 'leads' ? 'btn-primary' : 'btn-secondary'} btn-sm" id="btnSubTabLeads" style="padding: 9px 16px; font-weight: 700; white-space: nowrap; border-radius: var(--radius-pill);">
         🌾 Farmer Leads CRM (${repLeads.length})
       </button>
@@ -835,7 +840,8 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
     </div>
 
     <!-- Subtab Body Content -->
-    ${activeSubTab === 'leads' ? renderFarmerLeadsSubTabHtml(repInfo, repLeads, myStationRows, leadStageFilter) :
+    ${activeSubTab === 'followups' ? renderFollowUpsSubTabHtml(repInfo, storage.getUpcomingFollowUps(repInfo.name)) :
+      activeSubTab === 'leads' ? renderFarmerLeadsSubTabHtml(repInfo, repLeads, myStationRows, leadStageFilter) :
       activeSubTab === 'farmers' ? renderFarmersSubTabHtml(repInfo, repMeetings, repDemos) : 
       activeSubTab === 'competitor' ? renderCompetitorSubTabHtml(repInfo, repIntel) : `
       ${activeSubTab === 'tour' ? `
@@ -1194,6 +1200,12 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
     renderNearbyRetailersView(container, storage.rows, repInfo);
   });
 
+  document.getElementById('btnSubTabFollowups')?.addEventListener('click', () => {
+    activeSubTab = 'followups';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+
   document.getElementById('btnSubTabLeads')?.addEventListener('click', () => {
     activeSubTab = 'leads';
     nearbyPage = 1;
@@ -1211,6 +1223,18 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
     nearbyPage = 1;
     renderNearbyRetailersView(container, storage.rows, repInfo);
   });
+
+  // Bind Follow-up action buttons if on followups tab
+  if (activeSubTab === 'followups') {
+    container.querySelectorAll('.btn-open-followup-sheet').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const id = btn.getAttribute('data-id');
+        if (id) {
+          openCounterBottomSheet(id, currentRep, repInfo, container);
+        }
+      });
+    });
+  }
 
   // Bind Farmer Leads actions if on leads tab
   if (activeSubTab === 'leads') {
@@ -1434,8 +1458,21 @@ function renderCardsList(rows, currentRep, repInfo, mainContainer) {
             <div class="retailer-name" style="font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${escapeHtml(r.retailer)}
             </div>
-            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 3px;">
+            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 3px;">
               <span>📍 ${escapeHtml(r.block || 'N/A')}, ${escapeHtml(r.district || 'Bihar')}</span>
+              <span class="badge" style="background: rgba(0,0,0,0.04); font-size: 10.5px; border: 1px solid var(--line);">
+                🕒 Last Visit: <strong>${escapeHtml(r.last_visit_date || r.checkInDate || 'Never')}</strong>
+              </span>
+              ${r.follow_up_date ? `
+                <span class="badge ${r.follow_up_date < todayStr ? 'badge-danger' : r.follow_up_date === todayStr ? 'badge-visited' : 'badge-called'}" style="font-size: 10.5px; font-weight: 700;">
+                  📅 Follow-up: ${escapeHtml(r.follow_up_date)}
+                </span>
+              ` : ''}
+              ${r.total_orders_value ? `
+                <span class="badge" style="background: rgba(34,197,94,0.12); color: var(--success); font-weight: 700; font-size: 10.5px;">
+                  📦 ₹${Number(r.total_orders_value).toLocaleString('en-IN')} Booked
+                </span>
+              ` : ''}
               ${r.potentialFor ? `<span class="badge" style="background: var(--surface-alt); color: var(--primary); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line);">🌱 ${escapeHtml(r.potentialFor)}</span>` : ''}
               ${r.potentialSell ? `<span class="badge" style="background: var(--surface-alt); color: var(--ink); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line);">💰 ₹${escapeHtml(r.potentialSell)}</span>` : ''}
             </div>
@@ -1553,20 +1590,17 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
       if (blockMeta) {
         dist = calculateDistanceKm(lat, lng, blockMeta.lat, blockMeta.lng);
       }
-    } else {
-      if (userCoords && userCoords.isRealGps) {
-        lat = userCoords.lat;
-        lng = userCoords.lng;
-        accuracy = userCoords.accuracy || 50;
-      } else if (blockMeta) {
-        lat = blockMeta.lat;
-        lng = blockMeta.lng;
-        accuracy = 50;
-      }
+    } else if (userCoords && userCoords.isRealGps) {
+      lat = userCoords.lat;
+      lng = userCoords.lng;
+      accuracy = userCoords.accuracy || 30;
       if (blockMeta) {
         dist = calculateDistanceKm(lat, lng, blockMeta.lat, blockMeta.lng);
       }
-      showToast(`Warning: Live GPS lock failed (${loc.error}). Check browser location permissions.`, '⚠️');
+    } else {
+      // ANTI-FRAUD HARDENING: Do not allow centroid spoofing!
+      showToast(`Physical Check-In Denied: Real-time GPS lock is required (${loc.error || 'No GPS fix'}). Please enable GPS location services.`, '❌');
+      return null;
     }
 
     const now = new Date();
@@ -1583,7 +1617,9 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
       checkInCoords: { lat, lng, accuracy },
       checkInDistKm: dist,
       checkInRep: currentRep,
-      checkInMapUrl: mapUrl
+      checkInMapUrl: mapUrl,
+      last_visit_date: todayStr,
+      last_visit_time: timeStr
     };
 
     await storage.saveRow(updated);
@@ -1606,7 +1642,8 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
       distKm: dist,
       mapUrl,
       status: retailer.status || 'Visited',
-      notes: retailer.notes || ''
+      notes: retailer.notes || '',
+      shop_photo_data_url: currentShopPhotoDataUrl || null
     });
 
     showToast(`✅ Live GPS Verified for "${retailer.retailer}" (${lat.toFixed(4)}°, ${lng.toFixed(4)}° · ±${accuracy}m)!`, '📍');
@@ -1631,6 +1668,7 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
 // ========================================================
 let activeSheetRetailerId = null;
 let sheetInitialized = false;
+let currentShopPhotoDataUrl = null;
 
 function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
   if (sheetInitialized) return;
@@ -1645,6 +1683,48 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
     if (e.target === sheet) closeCounterBottomSheet();
   });
 
+  // Photo Capture & Preview Handlers
+  const photoInput = document.getElementById('sheetShopPhotoInput');
+  const snapBtn = document.getElementById('btnSnapShopPhoto');
+  const previewWrapper = document.getElementById('sheetPhotoPreviewWrapper');
+  const previewImg = document.getElementById('sheetShopPhotoPreview');
+  const removeBtn = document.getElementById('btnRemoveShopPhoto');
+
+  snapBtn?.addEventListener('click', () => photoInput?.click());
+
+  photoInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      currentShopPhotoDataUrl = ev.target.result;
+      if (previewImg) previewImg.src = currentShopPhotoDataUrl;
+      if (previewWrapper) previewWrapper.style.display = 'inline-flex';
+      showToast('Storefront proof photo captured!', '📸');
+    };
+    reader.readAsDataURL(file);
+  });
+
+  removeBtn?.addEventListener('click', () => {
+    currentShopPhotoDataUrl = null;
+    if (photoInput) photoInput.value = '';
+    if (previewWrapper) previewWrapper.style.display = 'none';
+    if (previewImg) previewImg.src = '';
+  });
+
+  // Order Value Auto-Calculation
+  const qtyInput = document.getElementById('sheetOrderQty');
+  const rateInput = document.getElementById('sheetOrderRate');
+  const totalDisplay = document.getElementById('sheetOrderTotalValue');
+  const updateOrderTotal = () => {
+    const q = Number(qtyInput?.value) || 0;
+    const r = Number(rateInput?.value) || 0;
+    const total = q * r;
+    if (totalDisplay) totalDisplay.textContent = `₹${total.toLocaleString('en-IN')}`;
+  };
+  qtyInput?.addEventListener('input', updateOrderTotal);
+  rateInput?.addEventListener('input', updateOrderTotal);
+
   // Note preset buttons
   document.querySelectorAll('#sheetNotePresets .touch-chip').forEach(chip => {
     chip.addEventListener('click', () => {
@@ -1657,7 +1737,7 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
     });
   });
 
-  // Save handler with Physical Visit Protection
+  // Save handler with Physical Visit Protection & Commercial Pipeline
   saveBtn?.addEventListener('click', async () => {
     if (!activeSheetRetailerId) return;
     const r = storage.rows.find(row => row.id === activeSheetRetailerId);
@@ -1693,6 +1773,57 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
     saveBtn.disabled = true;
 
     try {
+      // 1. Process Sales Order Booking (if entered)
+      const orderSku = document.getElementById('sheetOrderSku')?.value || '';
+      const orderQty = Number(document.getElementById('sheetOrderQty')?.value) || 0;
+      const orderRate = Number(document.getElementById('sheetOrderRate')?.value) || 0;
+      const orderPayment = document.getElementById('sheetOrderPayment')?.value || 'Cash_on_Delivery';
+      const totalOrderVal = orderQty * orderRate;
+
+      if (orderSku && orderQty > 0) {
+        storage.saveOrder({
+          retailer_id: r.id,
+          retailer_name: r.retailer,
+          assistant: currentRep,
+          order_date: todayStr,
+          order_time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+          product_sku: orderSku,
+          quantity_bags: orderQty,
+          unit_price: orderRate,
+          total_order_value: totalOrderVal,
+          payment_terms: orderPayment
+        });
+        showToast(`Booked order: ${orderQty} bags of ${orderSku} (₹${totalOrderVal})`, '📦');
+      }
+
+      // 2. Process Channel Stock & Liquidation Audit (if entered)
+      const stockCo = document.getElementById('sheetStockCompany')?.value;
+      const stockComp = document.getElementById('sheetStockCompetitor')?.value;
+      const stockOfftake = document.getElementById('sheetStockOfftake')?.value;
+      if ((stockCo && stockCo !== '') || (stockComp && stockComp !== '')) {
+        storage.saveDealerStock({
+          retailer_id: r.id,
+          retailer_name: r.retailer,
+          assistant: currentRep,
+          audit_date: todayStr,
+          company_stock_bags: Number(stockCo) || 0,
+          competitor_stock_bags: Number(stockComp) || 0,
+          weekly_offtake_pace: stockOfftake || 'Moderate'
+        });
+      }
+
+      // 3. Process Scheduled Follow-Up Date
+      const followUpDate = document.getElementById('sheetFollowUpDate')?.value || '';
+      const followUpReason = document.getElementById('sheetFollowUpReason')?.value || '';
+
+      // 4. Save Storefront Photo to IndexedDB
+      if (currentShopPhotoDataUrl) {
+        await idbStorage.saveMedia(r.id, 'shop_photo', currentShopPhotoDataUrl, {
+          retailer: r.retailer,
+          date: todayStr
+        });
+      }
+
       const updated = {
         ...r,
         mobile,
@@ -1700,7 +1831,11 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
         potentialFor,
         potentialSell,
         notes,
-        visitVerified: isVerifiedToday
+        visitVerified: isVerifiedToday,
+        last_visit_date: isVerifiedToday ? todayStr : (r.last_visit_date || null),
+        follow_up_date: followUpDate || r.follow_up_date || null,
+        follow_up_notes: followUpReason || r.follow_up_notes || '',
+        total_orders_value: totalOrderVal > 0 ? ((Number(r.total_orders_value) || 0) + totalOrderVal) : (r.total_orders_value || 0)
       };
 
       await storage.saveRow(updated);
@@ -1721,6 +1856,7 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
 export function openCounterBottomSheet(retailerId, currentRep, repInfo, mainContainer) {
   initCounterBottomSheet(mainContainer, repInfo, currentRep);
   activeSheetRetailerId = retailerId;
+  currentShopPhotoDataUrl = null;
 
   const sheet = document.getElementById('counterBottomSheet');
   if (!sheet) return;
@@ -1736,6 +1872,45 @@ export function openCounterBottomSheet(retailerId, currentRep, repInfo, mainCont
   const subEl = document.getElementById('sheetRetailerSub');
   if (nameEl) nameEl.textContent = r.retailer;
   if (subEl) subEl.textContent = `${r.block || 'N/A'}, ${r.district || 'Bihar'} · Rep: ${r.assistant || currentRep}`;
+
+  // Reset Photo Upload & Check IndexedDB for existing photo
+  const previewWrapper = document.getElementById('sheetPhotoPreviewWrapper');
+  const previewImg = document.getElementById('sheetShopPhotoPreview');
+  const photoInput = document.getElementById('sheetShopPhotoInput');
+  if (photoInput) photoInput.value = '';
+  if (previewWrapper) previewWrapper.style.display = 'none';
+  if (previewImg) previewImg.src = '';
+
+  idbStorage.getMedia(r.id).then(media => {
+    if (media && media.dataUrl) {
+      if (previewImg) previewImg.src = media.dataUrl;
+      if (previewWrapper) previewWrapper.style.display = 'inline-flex';
+    }
+  }).catch(() => {});
+
+  // Reset & Populate Order Inputs
+  const skuSelect = document.getElementById('sheetOrderSku');
+  const qtyInput = document.getElementById('sheetOrderQty');
+  const rateInput = document.getElementById('sheetOrderRate');
+  const totalDisplay = document.getElementById('sheetOrderTotalValue');
+  if (skuSelect) skuSelect.value = '';
+  if (qtyInput) qtyInput.value = '';
+  if (rateInput) rateInput.value = '';
+  if (totalDisplay) totalDisplay.textContent = '₹0';
+
+  // Reset Stock Inputs
+  const stockCo = document.getElementById('sheetStockCompany');
+  const stockComp = document.getElementById('sheetStockCompetitor');
+  const stockOfftake = document.getElementById('sheetStockOfftake');
+  if (stockCo) stockCo.value = '';
+  if (stockComp) stockComp.value = '';
+  if (stockOfftake) stockOfftake.value = 'Moderate';
+
+  // Populate Follow-up Date & Objective
+  const followUpDateInput = document.getElementById('sheetFollowUpDate');
+  const followUpReasonInput = document.getElementById('sheetFollowUpReason');
+  if (followUpDateInput) followUpDateInput.value = r.follow_up_date || '';
+  if (followUpReasonInput) followUpReasonInput.value = r.follow_up_notes || '';
 
   // Populate GPS Status Banner
   const gpsBanner = document.getElementById('sheetGpsBanner');
@@ -2328,6 +2503,76 @@ function renderCompetitorSubTabHtml(repInfo, repIntel) {
           `).join('')}
         </div>
       `}
+    </div>
+  `;
+}
+
+function renderFollowUpsSubTabHtml(repInfo, followUps) {
+  if (!followUps || followUps.length === 0) {
+    return `
+      <div class="card" style="text-align: center; padding: 48px 20px;">
+        <div style="font-size: 40px; margin-bottom: 12px;">📅</div>
+        <h3 style="font-weight: 700; font-size: 17px; color: var(--ink);">No Scheduled Follow-Ups Due</h3>
+        <p style="color: var(--muted); font-size: 13px; max-width: 440px; margin: 8px auto 0;">
+          All scheduled counter visits and retailer commitments are up to date! Set follow-up dates in the Counter Details drawer after meeting dealers to build your future pipeline.
+        </p>
+      </div>
+    `;
+  }
+
+  const overdue = followUps.filter(f => f.status === 'overdue');
+  const today = followUps.filter(f => f.status === 'today');
+  const upcoming = followUps.filter(f => f.status === 'upcoming');
+
+  return `
+    <div style="display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap;">
+      <div class="card" style="flex: 1; min-width: 140px; padding: 12px 16px; border-left: 4px solid var(--danger);">
+        <div style="font-size: 22px; font-weight: 800; color: var(--danger);">${overdue.length}</div>
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">⚠️ Overdue Follow-ups</div>
+      </div>
+      <div class="card" style="flex: 1; min-width: 140px; padding: 12px 16px; border-left: 4px solid #f59e0b;">
+        <div style="font-size: 22px; font-weight: 800; color: #d97706;">${today.length}</div>
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">📌 Due Today</div>
+      </div>
+      <div class="card" style="flex: 1; min-width: 140px; padding: 12px 16px; border-left: 4px solid var(--primary);">
+        <div style="font-size: 22px; font-weight: 800; color: var(--primary);">${upcoming.length}</div>
+        <div style="font-size: 11px; color: var(--muted); font-weight: 700;">🌱 Upcoming Scheduled</div>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+      ${followUps.map(f => `
+        <div class="card" style="padding: 14px 16px; border-left: 4px solid ${f.status === 'overdue' ? 'var(--danger)' : f.status === 'today' ? '#f59e0b' : 'var(--primary)'};">
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; flex-wrap: wrap;">
+            <div>
+              <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span style="font-weight: 800; font-size: 15.5px; color: var(--ink);">${escapeHtml(f.retailer)}</span>
+                <span class="badge ${f.status === 'overdue' ? 'badge-danger' : f.status === 'today' ? 'badge-visited' : 'badge-called'}" style="font-weight: 800; font-size: 11px;">
+                  ${f.status === 'overdue' ? '⚠️ OVERDUE (' + f.follow_up_date + ')' : f.status === 'today' ? '📌 DUE TODAY' : '📅 ' + f.follow_up_date}
+                </span>
+              </div>
+              <div style="font-size: 12px; color: var(--muted); margin-top: 3px;">
+                📍 ${escapeHtml(f.block)}, ${escapeHtml(f.district)} • Last Visited: <strong>${escapeHtml(f.last_visit_date)}</strong>
+              </div>
+              ${f.follow_up_notes ? `
+                <div style="margin-top: 8px; font-size: 12.5px; background: rgba(0,0,0,0.03); padding: 8px 12px; border-radius: var(--radius-sm); border-left: 3px solid #7c3aed;">
+                  🎯 <strong>Follow-up Commitment:</strong> <em>${escapeHtml(f.follow_up_notes)}</em>
+                </div>
+              ` : ''}
+            </div>
+
+            <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+              ${f.mobile ? `
+                <a href="tel:${f.mobile.replace(/\D/g, '')}" class="btn btn-secondary btn-sm" style="font-size: 11.5px; padding: 6px 10px;">📞 Call</a>
+                <a href="https://wa.me/91${f.mobile.replace(/\D/g, '')}" target="_blank" rel="noopener" class="btn btn-secondary btn-sm" style="font-size: 11.5px; padding: 6px 10px; color: #16a34a;">💬 WA</a>
+              ` : ''}
+              <button type="button" class="btn btn-primary btn-sm btn-open-followup-sheet" data-id="${f.retailerId}" style="font-size: 11.5px; padding: 6px 12px; font-weight: 700;">
+                📝 Action Counter ➔
+              </button>
+            </div>
+          </div>
+        </div>
+      `).join('')}
     </div>
   `;
 }

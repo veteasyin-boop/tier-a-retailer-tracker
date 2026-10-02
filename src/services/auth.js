@@ -1,6 +1,9 @@
+import { supabaseService } from './supabase.js';
+
 const MANAGER_PIN_KEY = 'tat_manager_pin';
 const CURRENT_REP_KEY = 'tat_assigned_rep';
 const ADMIN_SESSION_KEY = 'tat_admin_session';
+const AUTH_MODE_KEY = 'tat_auth_mode'; // 'cloud' | 'local'
 
 const DEFAULT_PIN = '2026';
 
@@ -8,6 +11,36 @@ class AuthService {
   constructor() {
     this.currentRep = localStorage.getItem(CURRENT_REP_KEY) || '';
     this.isAdmin = sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+    this.authMode = localStorage.getItem(AUTH_MODE_KEY) || 'local';
+  }
+
+  isCloudAuth() {
+    return this.authMode === 'cloud';
+  }
+
+  async loginWithSupabase(email, password) {
+    if (!supabaseService.isReady) {
+      await supabaseService.init();
+    }
+    const { data, error } = await supabaseService.signInWithEmail(email, password);
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    const user = data.user;
+    const role = user?.user_metadata?.role || (email.includes('admin') || email.includes('manager') ? 'manager' : 'field_rep');
+    const repName = user?.user_metadata?.rep_name || user?.email;
+
+    if (role === 'manager') {
+      this.isAdmin = true;
+      sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
+    } else {
+      this.setAssignedRep(repName);
+    }
+
+    this.authMode = 'cloud';
+    localStorage.setItem(AUTH_MODE_KEY, 'cloud');
+    return { success: true, user, role, repName };
   }
 
   getManagerPin() {
@@ -33,9 +66,12 @@ class AuthService {
     return false;
   }
 
-  logoutManager() {
+  async logoutManager() {
     this.isAdmin = false;
     sessionStorage.removeItem(ADMIN_SESSION_KEY);
+    if (this.isCloudAuth()) {
+      await supabaseService.signOutUser().catch(() => {});
+    }
   }
 
   getAssignedRep() {

@@ -135,6 +135,108 @@
           </div>
         </div>
 
+        <!-- Storefront Photo Audit (Camera Capture) -->
+        <div class="form-group" style="background: rgba(2, 132, 199, 0.05); padding: 12px; border-radius: var(--radius-sm); border: 1px dashed rgba(2, 132, 199, 0.3);">
+          <label class="form-label" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <span>📸 Storefront Proof Photo</span>
+            <span style="font-size: 11px; color: var(--muted);">Geo-tagged • IndexedDB</span>
+          </label>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input type="file" id="sheetShopPhotoInput" accept="image/*" capture="environment" style="display: none;">
+            <button type="button" class="btn btn-secondary btn-sm" id="btnSnapShopPhoto" style="font-size: 12px;">
+              📷 Capture Shop Front
+            </button>
+            <div id="sheetPhotoPreviewWrapper" style="display: none; align-items: center; gap: 8px;">
+              <img id="sheetShopPhotoPreview" src="" alt="Shop Preview" style="width: 44px; height: 44px; object-fit: cover; border-radius: var(--radius-sm); border: 1px solid var(--line);">
+              <button type="button" id="btnRemoveShopPhoto" style="background: none; border: none; color: var(--danger); font-size: 12px; cursor: pointer;">✕ Remove</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sales Order Booking Accordion -->
+        <details style="background: rgba(34, 197, 94, 0.05); border: 1px solid rgba(34, 197, 94, 0.25); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
+          <summary style="font-weight: 700; font-size: 13px; color: var(--primary); cursor: pointer;">
+            📦 Book Counter Order (Sales Pipeline)
+          </summary>
+          <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="grid-column: span 2;">
+              <label class="form-label" style="font-size: 11.5px;">Product SKU / Hybrid</label>
+              <select id="sheetOrderSku" style="width: 100%; padding: 7px; font-size: 12.5px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);">
+                <option value="">-- No Order Placed --</option>
+                <option value="Super Paddy 64">Super Paddy 64 (Hybrid Rice)</option>
+                <option value="Pioneer 3355">Pioneer 3355 (Hybrid Maize)</option>
+                <option value="Gold Mustard 21">Gold Mustard 21 (Mustard Seed)</option>
+                <option value="Kisan Wheat 502">Kisan Wheat 502 (Certified Seed)</option>
+                <option value="Chlorpyrifos 50% EC">Chlorpyrifos 50% EC (Agrochem)</option>
+                <option value="Proclaim Emamectin">Proclaim Emamectin (Insecticide)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Quantity (Bags/Units)</label>
+              <input type="number" id="sheetOrderQty" placeholder="e.g. 25" min="1" style="width: 100%; padding: 7px; font-size: 12.5px;">
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Rate per Bag (₹)</label>
+              <input type="number" id="sheetOrderRate" placeholder="e.g. 2400" min="0" style="width: 100%; padding: 7px; font-size: 12.5px;">
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Payment Terms</label>
+              <select id="sheetOrderPayment" style="width: 100%; padding: 7px; font-size: 12.5px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);">
+                <option value="Cash_on_Delivery">Cash on Delivery</option>
+                <option value="Credit_15_Days">Credit (15 Days)</option>
+                <option value="Credit_30_Days">Credit (30 Days)</option>
+                <option value="Advance_Paid">Advance Paid</option>
+                <option value="PDC">Post-Dated Cheque (PDC)</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Total Order Value</label>
+              <div id="sheetOrderTotalValue" style="padding: 7px; font-weight: 800; color: var(--success); font-size: 13px;">₹0</div>
+            </div>
+          </div>
+        </details>
+
+        <!-- Channel Stock & Liquidation Accordion -->
+        <details style="background: rgba(245, 158, 11, 0.05); border: 1px solid rgba(245, 158, 11, 0.25); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
+          <summary style="font-weight: 700; font-size: 13px; color: #d97706; cursor: pointer;">
+            📊 Counter Stock & Farmer Liquidation Audit
+          </summary>
+          <div style="margin-top: 10px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Company Stock (Bags)</label>
+              <input type="number" id="sheetStockCompany" placeholder="0" min="0" style="width: 100%; padding: 7px; font-size: 12.5px;">
+            </div>
+            <div>
+              <label class="form-label" style="font-size: 11.5px;">Competitor Stock (Bags)</label>
+              <input type="number" id="sheetStockCompetitor" placeholder="0" min="0" style="width: 100%; padding: 7px; font-size: 12.5px;">
+            </div>
+            <div style="grid-column: span 2;">
+              <label class="form-label" style="font-size: 11.5px;">Farmer Offtake / Liquidation Pace</label>
+              <select id="sheetStockOfftake" style="width: 100%; padding: 7px; font-size: 12.5px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);">
+                <option value="Fast">🔥 High / Fast Liquidation</option>
+                <option value="Moderate" selected>⚡ Steady / Moderate</option>
+                <option value="Slow">🐢 Slow / Stagnant</option>
+                <option value="Nil">❌ Nil / Dead Stock</option>
+              </select>
+            </div>
+          </div>
+        </details>
+
+        <!-- Scheduled Follow-Up Date & Reminder -->
+        <div class="form-group" style="background: rgba(139, 92, 246, 0.05); border: 1px solid rgba(139, 92, 246, 0.25); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 12px;">
+          <label class="form-label" style="color: #7c3aed; font-weight: 700; display: block; margin-bottom: 6px;">
+            📅 Scheduled Follow-Up & Action Date
+          </label>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div>
+              <input type="date" id="sheetFollowUpDate" style="width: 100%; padding: 7px; font-size: 12.5px; border-radius: var(--radius-sm); border: 1px solid var(--line); background: var(--surface);">
+            </div>
+            <div>
+              <input type="text" id="sheetFollowUpReason" placeholder="Follow-up objective" style="width: 100%; padding: 7px; font-size: 12.5px;">
+            </div>
+          </div>
+        </div>
+
         <!-- Quick Notes Presets -->
         <div>
           <label class="form-label" style="margin-bottom: 6px; display: block;">Quick Note Presets (Tap to Add)</label>
@@ -150,7 +252,7 @@
         <!-- Notes Textarea -->
         <div class="form-group">
           <label class="form-label">Field Notes & Action Plan</label>
-          <textarea id="sheetNotesInput" rows="3" placeholder="Enter visit details, farmer feedback, price inquiries, or follow-up date..."></textarea>
+          <textarea id="sheetNotesInput" rows="2" placeholder="Enter visit details, farmer feedback, price inquiries..."></textarea>
         </div>
       </div>
 

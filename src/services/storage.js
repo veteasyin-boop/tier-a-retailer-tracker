@@ -30,6 +30,13 @@ class StorageService {
   async init() {
     if (this.initialized) return this.rows;
 
+    // Request persistent storage to protect local data from mobile browser eviction
+    if (typeof navigator !== 'undefined' && navigator.storage && navigator.storage.persist) {
+      navigator.storage.persist().then(granted => {
+        if (granted) console.log('✓ Persistent storage granted by browser');
+      }).catch(e => console.warn('Storage persist note:', e));
+    }
+
     // Start background optimistic sync queue with exponential backoff
     try {
       syncQueue.start();
@@ -595,9 +602,7 @@ class StorageService {
 
     this.saveToLocal();
     this.triggerChange();
-    if (supabaseService.isReady) {
-      supabaseService.upsertRetailer(updatePayload).catch(e => console.warn('Supabase saveRow warning:', e));
-    }
+    syncQueue.enqueue('retailers', 'upsert', updatePayload).catch(e => console.warn('Sync queue retailer note:', e));
     return updatePayload;
   }
 
@@ -700,23 +705,192 @@ class StorageService {
   saveCheckInLog(entry, syncToCloud = true) {
     try {
       const logs = this.getCheckInLogs();
+      let cleanEntry = { ...entry };
+
+      // Offload high-res storefront photo to IndexedDB
+      if (entry.shop_photo_data_url) {
+        idbStorage.saveMedia(entry.id, 'shop_photo', entry.shop_photo_data_url, {
+          retailerId: entry.retailerId,
+          retailer: entry.retailer,
+          date: entry.date
+        }).catch(err => console.warn('idbStorage saveMedia shop photo error:', err));
+        cleanEntry.has_shop_photo = true;
+        delete cleanEntry.shop_photo_data_url;
+      }
+
       // Avoid duplicate consecutive logs for same retailer on same date/time
       const existingIdx = logs.findIndex(l => l.retailerId === entry.retailerId && l.date === entry.date);
       if (existingIdx >= 0) {
-        logs[existingIdx] = { ...logs[existingIdx], ...entry };
+        logs[existingIdx] = { ...logs[existingIdx], ...cleanEntry };
       } else {
-        logs.unshift(entry);
+        logs.unshift(cleanEntry);
       }
       localStorage.setItem('tat_live_checkins_v1', JSON.stringify(logs.slice(0, 1000)));
-      window.dispatchEvent(new CustomEvent('tracker:checkInLogged', { detail: { entry } }));
+
+      // Auto-update retailer record with last_visit_date and follow-up info
+      const r = this.rows.find(row => row.id === entry.retailerId);
+      if (r) {
+        r.last_visit_date = entry.date;
+        r.last_visit_time = entry.time;
+        if (entry.follow_up_date) {
+          r.follow_up_date = entry.follow_up_date;
+          r.follow_up_notes = entry.follow_up_notes || '';
+        }
+        if (entry.order_value) {
+          r.total_orders_value = (Number(r.total_orders_value) || 0) + Number(entry.order_value);
+          r.last_order_date = entry.date;
+        }
+        this.saveToLocal();
+      }
+
+      window.dispatchEvent(new CustomEvent('tracker:checkInLogged', { detail: { entry: cleanEntry } }));
 
       // Optimistically enqueue mutation to sync queue with exponential backoff
       if (syncToCloud) {
-        syncQueue.enqueue('check_in_logs', 'upsert', entry).catch(e => console.warn('Sync queue checkin warning:', e));
+        syncQueue.enqueue('check_in_logs', 'upsert', cleanEntry).catch(e => console.warn('Sync queue checkin warning:', e));
       }
     } catch(e) {
       console.error('Error saving checkin log:', e);
     }
+  }
+
+  // ========================================================
+  // COMMERCIAL SALES ORDERS & PIPELINE MANAGEMENT
+  // ========================================================
+
+  getOrders() {
+    try {
+      const raw = localStorage.getItem('tat_orders_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error reading orders:', e);
+    }
+    return [];
+  }
+
+  saveOrder(order, syncToCloud = true) {
+    try {
+      const orders = this.getOrders();
+      const existingIdx = orders.findIndex(o => o.id === order.id);
+      const cleanOrder = {
+        ...order,
+        id: order.id || `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        created_at: order.created_at || new Date().toISOString()
+      };
+
+      if (existingIdx >= 0) {
+        orders[existingIdx] = cleanOrder;
+      } else {
+        orders.unshift(cleanOrder);
+      }
+      localStorage.setItem('tat_orders_v1', JSON.stringify(orders.slice(0, 1000)));
+
+      // Update retailer sales aggregation
+      const r = this.rows.find(row => row.id === order.retailer_id);
+      if (r) {
+        r.last_order_date = order.order_date || new Date().toISOString().split('T')[0];
+        r.total_orders_value = (Number(r.total_orders_value) || 0) + (Number(order.total_order_value) || 0);
+        this.saveToLocal();
+      }
+
+      window.dispatchEvent(new CustomEvent('tracker:orderBooked', { detail: { order: cleanOrder } }));
+      this.triggerChange();
+
+      if (syncToCloud) {
+        syncQueue.enqueue('orders', 'upsert', cleanOrder).catch(e => console.warn('Sync queue order warning:', e));
+      }
+      return cleanOrder;
+    } catch (e) {
+      console.error('Error saving order:', e);
+      throw e;
+    }
+  }
+
+  deleteOrder(id) {
+    const orders = this.getOrders().filter(o => o.id !== id);
+    localStorage.setItem('tat_orders_v1', JSON.stringify(orders));
+    this.triggerChange();
+    syncQueue.enqueue('orders', 'delete', { id });
+  }
+
+  // ========================================================
+  // DEALER STOCK & OFFTAKE LIQUIDATION AUDIT
+  // ========================================================
+
+  getDealerStock() {
+    try {
+      const raw = localStorage.getItem('tat_dealer_stock_v1');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error('Error reading dealer stock:', e);
+    }
+    return [];
+  }
+
+  saveDealerStock(stock, syncToCloud = true) {
+    try {
+      const list = this.getDealerStock();
+      const cleanStock = {
+        ...stock,
+        id: stock.id || `stk_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        created_at: stock.created_at || new Date().toISOString()
+      };
+      const existingIdx = list.findIndex(s => s.id === cleanStock.id);
+      if (existingIdx >= 0) {
+        list[existingIdx] = cleanStock;
+      } else {
+        list.unshift(cleanStock);
+      }
+      localStorage.setItem('tat_dealer_stock_v1', JSON.stringify(list.slice(0, 1000)));
+      window.dispatchEvent(new CustomEvent('tracker:stockAudited', { detail: { stock: cleanStock } }));
+      this.triggerChange();
+
+      if (syncToCloud) {
+        syncQueue.enqueue('dealer_stock', 'upsert', cleanStock).catch(e => console.warn('Sync queue stock warning:', e));
+      }
+      return cleanStock;
+    } catch (e) {
+      console.error('Error saving dealer stock:', e);
+      throw e;
+    }
+  }
+
+  // ========================================================
+  // FOLLOW-UP CALENDAR & DUE ALERTS ENGINE
+  // ========================================================
+
+  getUpcomingFollowUps(repName = null) {
+    const today = new Date().toISOString().split('T')[0];
+    let pool = this.rows.filter(r => r.follow_up_date);
+
+    if (repName && repName !== 'all') {
+      pool = pool.filter(r => r.assistant === repName);
+    }
+
+    return pool.map(r => {
+      let status = 'upcoming';
+      if (r.follow_up_date < today) status = 'overdue';
+      else if (r.follow_up_date === today) status = 'today';
+
+      return {
+        retailerId: r.id,
+        retailer: r.retailer,
+        mobile: r.mobile,
+        block: r.block,
+        district: r.district,
+        assistant: r.assistant,
+        follow_up_date: r.follow_up_date,
+        follow_up_notes: r.follow_up_notes || '',
+        last_visit_date: r.last_visit_date || r.checkInDate || 'Never',
+        status
+      };
+    }).sort((a, b) => a.follow_up_date.localeCompare(b.follow_up_date));
   }
 
   // ========================================================

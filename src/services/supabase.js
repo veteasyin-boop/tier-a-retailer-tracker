@@ -42,7 +42,12 @@ class SupabaseService {
 
     try {
       this.client = createClient(url, key, {
-        auth: { persistSession: false },
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+          storageKey: 'tat_sb_auth_token'
+        },
         realtime: { params: { eventsPerSecond: 10 } }
       });
       this.isReady = true;
@@ -53,6 +58,38 @@ class SupabaseService {
       this.isReady = false;
       return false;
     }
+  }
+
+  // Real Supabase Authentication Methods
+  async signInWithEmail(email, password) {
+    if (!this.client) throw new Error('Supabase client is not initialized.');
+    return await this.client.auth.signInWithPassword({ email: email.trim(), password });
+  }
+
+  async signUpUser(email, password, metadata = {}) {
+    if (!this.client) throw new Error('Supabase client is not initialized.');
+    return await this.client.auth.signUp({
+      email: email.trim(),
+      password,
+      options: { data: metadata }
+    });
+  }
+
+  async signOutUser() {
+    if (!this.client) return;
+    return await this.client.auth.signOut();
+  }
+
+  async getCurrentSession() {
+    if (!this.client) return null;
+    const { data } = await this.client.auth.getSession();
+    return data?.session || null;
+  }
+
+  async getCurrentUser() {
+    if (!this.client) return null;
+    const { data } = await this.client.auth.getUser();
+    return data?.user || null;
   }
 
   async testConnection(url, key) {
