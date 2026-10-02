@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Tier A Retailer Tracker - High performance Agritech Field Sales & Retailer Outreach Platform for Bihar districts">
+  <title>🌱 Tier A Retailer Tracker | Bihar Field Operations</title>
+  <meta name="theme-color" content="#15803d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Tier A Tracker">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="icon" type="image/svg+xml" href="/icons/icon.svg">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Application Header -->
+  <header>
+    <div class="header-top">
+      <div class="brand">
+        <div class="brand-icon">🌱</div>
+        <div class="brand-info">
+          <h1>Tier A Retailer Tracker <span class="brand-badge">Bihar Ops</span></h1>
+          <div class="brand-sub">Seed & Agrochemical Outreach • 8 Key HQs • 573 Tier-A Dealers</div>
+        </div>
+      </div>
+      
+      <div class="header-actions">
+        <button class="btn btn-secondary btn-sm" id="btnInstallPwa" style="display: none; background: rgba(34, 197, 94, 0.12); color: var(--primary); font-weight: 700; border-color: rgba(34, 197, 94, 0.4);" title="Install Tier A Tracker as a native mobile app">📲 Install App</button>
+        <div id="storagePill" class="status-chip" title="Data persistence engine" style="display: none;">
+          <span class="status-dot"></span>
+          <span id="storageLabel">Initializing…</span>
+        </div>
+        <button class="btn btn-secondary btn-icon" id="themeToggle" title="Toggle Dark/Light Mode">🌓</button>
+        <button class="btn btn-secondary btn-sm" id="roleToggle" title="Switch to Admin / Manager View">👑 Admin Login</button>
+        <button class="btn btn-secondary btn-sm" id="adminLogoutBtn" style="color: var(--danger); font-weight: 600; display: none;" title="Logout from Admin Mode">🚪 Logout</button>
+      </div>
+    </div>
+
+    <div class="tabs-nav">
+      <button class="tab-btn active" id="tabField">
+        <span>🚜</span> Field Update
+      </button>
+      <button class="tab-btn" id="tabAdmin">
+        <span>📊</span> Admin Analytics & Records
+      </button>
+    </div>
+  </header>
+
+  <!-- Main View Container -->
+  <main>
+    <div id="loading" class="card" style="text-align: center; padding: 48px 20px;">
+      <div style="font-size: 36px; margin-bottom: 12px; animation: pulse-dot 1.5s infinite ease-in-out;">🌾</div>
+      <div style="font-weight: 700; font-size: 18px; font-family: var(--font-heading);">Loading Bihar Retailer Database…</div>
+      <div style="color: var(--muted); margin-top: 6px; font-size: 13px;">Syncing 573 Tier-A field stations, block lists, and dealer records</div>
+    </div>
+
+    <div id="mainViewContainer" class="hidden"></div>
+  </main>
+
+  <!-- Mobile Floating Action Button (Quick GPS Refresh) -->
+  <button id="fabRefresh" class="fab-refresh" title="Detect GPS Location & Show Closest Counters">
+    <span class="fab-icon">📍</span>
+    <span class="fab-text">GPS Locate</span>
+  </button>
+
+  <!-- Native Mobile Bottom Navigation Bar -->
+  <nav class="mobile-bottom-nav" id="mobileBottomNav">
+    <button type="button" class="bottom-nav-item active" id="bNavCounters" data-view="counters">
+      <span class="nav-icon">🏪</span>
+      <span>Counters</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bNavTour" data-view="tour">
+      <span class="nav-icon">📋</span>
+      <span>Today's Tour</span>
+      <span class="bottom-nav-badge hidden" id="bNavTourBadge">0</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bNavAudit" data-view="audit">
+      <span class="nav-icon">🛰️</span>
+      <span>GPS Audit</span>
+    </button>
+    <button type="button" class="bottom-nav-item" id="bNavAdmin" data-view="admin">
+      <span class="nav-icon">👑</span>
+      <span>Manager</span>
+    </button>
+  </nav>
+
+  <!-- Native Mobile Bottom Sheet Drawer for Counter Details -->
+  <div id="counterBottomSheet" class="bottom-sheet-backdrop">
+    <div class="bottom-sheet-content">
+      <div class="sheet-drag-handle"></div>
+      <div class="sheet-header">
+        <div>
+          <div id="sheetRetailerName" style="font-family: var(--font-heading); font-size: 16px; font-weight: 700;">Retailer Name</div>
+          <div id="sheetRetailerSub" style="font-size: 12px; color: var(--muted);">Block · District · Rep</div>
+        </div>
+        <button type="button" class="btn btn-secondary btn-icon" id="btnCloseSheet" style="border-radius: 50%; width: 32px; height: 32px;">✕</button>
+      </div>
+
+      <div class="sheet-body">
+        <!-- Live GPS Visit Status Banner -->
+        <div id="sheetGpsBanner" style="padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12.5px;"></div>
+
+        <!-- Outreach Status Segmented Chips -->
+        <div>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">Outreach Status</label>
+          <div class="touch-chips-group" id="sheetStatusChips"></div>
+        </div>
+
+        <!-- Product Focus Chips -->
+        <div>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">Focus Category / Crop</label>
+          <div class="touch-chips-group" id="sheetCategoryChips"></div>
+        </div>
+
+        <!-- Sales Bracket Chips -->
+        <div>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">Sales Bracket Potential</label>
+          <div class="touch-chips-group" id="sheetSellChips"></div>
+        </div>
+
+        <!-- Mobile Number & Direct Dial -->
+        <div class="form-group">
+          <label class="form-label">Contact Mobile</label>
+          <div style="display: flex; gap: 8px;">
+            <input type="tel" id="sheetMobileInput" placeholder="10-digit mobile" maxlength="12" style="flex: 1;">
+            <a href="#" id="sheetCallLink" class="btn btn-secondary" style="padding: 8px 12px; font-size: 12px;">📞 Call</a>
+            <a href="#" id="sheetWaLink" target="_blank" rel="noopener" class="btn btn-secondary" style="padding: 8px 12px; font-size: 12px; color: #16a34a;">💬 WA</a>
+          </div>
+        </div>
+
+        <!-- Quick Notes Presets -->
+        <div>
+          <label class="form-label" style="margin-bottom: 6px; display: block;">Quick Note Presets (Tap to Add)</label>
+          <div class="touch-chips-group" id="sheetNotePresets">
+            <button type="button" class="touch-chip touch-chip-tag" data-preset="Sample seed kit delivered">+ Sample Delivered</button>
+            <button type="button" class="touch-chip touch-chip-tag" data-preset="Checked crop protection stock">+ Stock Checked</button>
+            <button type="button" class="touch-chip touch-chip-tag" data-preset="Booked fresh Kharif order">+ Booked Order</button>
+            <button type="button" class="touch-chip touch-chip-tag" data-preset="Follow-up on pending payment">+ Payment Followup</button>
+            <button type="button" class="touch-chip touch-chip-tag" data-preset="Shop was closed during visit">+ Shop Closed</button>
+          </div>
+        </div>
+
+        <!-- Notes Textarea -->
+        <div class="form-group">
+          <label class="form-label">Field Notes & Action Plan</label>
+          <textarea id="sheetNotesInput" rows="3" placeholder="Enter visit details, farmer feedback, price inquiries, or follow-up date..."></textarea>
+        </div>
+      </div>
+
+      <div class="sheet-footer">
+        <button type="button" class="btn btn-primary" id="btnSaveSheet" style="width: 100%; padding: 13px; font-size: 14.5px; border-radius: var(--radius-sm); box-shadow: var(--shadow-glow);">
+          💾 Save Counter Details
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

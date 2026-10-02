@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.vercel/
+.env*
+!.env.example
+scratch/chrome_profile/
+scratch/edge_profile/
+*.log
+.DS_Store
+Thumbs.db
