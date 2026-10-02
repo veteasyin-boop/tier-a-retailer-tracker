@@ -1,11 +1,25 @@
 import { escapeHtml } from '../utils/geo.js';
+import { idbStorage } from '../services/idbStorage.js';
 
 /**
  * Opens an ultra-crisp modal lightbox to view an attached receipt / bill
  * @param {Object} bill - { id, name, category, amount, notes, dataUrl, uploadedAt }
  */
-export function openReceiptLightboxModal(bill) {
+export async function openReceiptLightboxModal(bill) {
   if (!bill) return;
+
+  // Retrieve high-res dataUrl from IndexedDB if offloaded from localStorage
+  if (!bill.dataUrl && bill.id) {
+    try {
+      const media = await idbStorage.getMedia(bill.id);
+      if (media && media.dataUrl) {
+        bill = { ...bill, dataUrl: media.dataUrl };
+      }
+    } catch (e) {
+      console.warn('Idb media retrieval note:', e);
+    }
+  }
+
   const existing = document.getElementById('receiptLightboxModal');
   if (existing) existing.remove();
 

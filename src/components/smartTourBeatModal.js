@@ -3,6 +3,8 @@ import { auth } from '../services/auth.js';
 import { showToast } from './toast.js';
 import { BIHAR_BLOCKS, calculateDistanceKm, detectBrowserLocation, escapeHtml, optimizeTourBeatRoute } from '../utils/geo.js';
 import { openReceiptLightboxModal } from './receiptLightboxModal.js';
+import { idbStorage } from '../services/idbStorage.js';
+import { workerClient } from '../services/workerClient.js';
 
 let activeBeatModalTab = 'beat'; // 'beat' | 'tada'
 let currentBeatResult = null;
@@ -356,15 +358,29 @@ function renderBeatOptimizerTab(viewport, modal, repInfo, repDealers, currentBlo
     });
   });
 
-  modal.querySelector('#btnCalculateTspRoute')?.addEventListener('click', () => {
+  modal.querySelector('#btnCalculateTspRoute')?.addEventListener('click', async () => {
     const selectedDealers = repDealers.filter(r => selectedDealerIds.has(r.id));
     if (selectedDealers.length === 0) return showToast('Please select at least 1 counter.', '⚠️');
 
-    const returnToHq = modal.querySelector('#chkReturnToHq')?.checked !== false;
-    currentBeatResult = optimizeTourBeatRoute(currentOrigin, selectedDealers, { returnToHq });
+    const btn = modal.querySelector('#btnCalculateTspRoute');
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = `<span>⏳</span> Optimizing on Web Worker…`;
 
-    showToast(`⚡ Route Optimized! ${currentBeatResult.totalDistanceKm} km across ${currentBeatResult.orderedStops.length} stops.`, '✅');
-    renderActiveTab(modal, repInfo, repDealers, currentBlock, selectedDate);
+    try {
+      const returnToHq = modal.querySelector('#chkReturnToHq')?.checked !== false;
+      // Compute shortest TSP path in background Web Worker
+      currentBeatResult = await workerClient.optimizeRoute(currentOrigin, selectedDealers, { returnToHq });
+
+      showToast(`⚡ Route Optimized on Worker! ${currentBeatResult.totalDistanceKm} km across ${currentBeatResult.orderedStops.length} stops.`, '✅');
+      renderActiveTab(modal, repInfo, repDealers, currentBlock, selectedDate);
+    } catch (err) {
+      console.warn('Worker route computation fallback:', err);
+      const returnToHq = modal.querySelector('#chkReturnToHq')?.checked !== false;
+      currentBeatResult = optimizeTourBeatRoute(currentOrigin, selectedDealers, { returnToHq });
+      renderActiveTab(modal, repInfo, repDealers, currentBlock, selectedDate);
+    } finally {
+      if (btn) btn.innerHTML = originalHtml;
+    }
   });
 
   attachBeatResultActions(modal, repInfo, currentBlock, selectedDate);
@@ -1111,8 +1127,9 @@ function renderTadaClaimTab(viewport, modal, repInfo, repDealers, selectedDate) 
     }
 
     const processAttachment = (dataUrl, fileName) => {
+      const billId = 'bill_' + Date.now();
       const newBill = {
-        id: 'bill_' + Date.now(),
+        id: billId,
         name: fileName,
         category: cat,
         amount: amt,
@@ -1120,6 +1137,15 @@ function renderTadaClaimTab(viewport, modal, repInfo, repDealers, selectedDate) 
         dataUrl: dataUrl,
         uploadedAt: new Date().toISOString()
       };
+
+      // Save high-resolution bill image to IndexedDB to bypass 5MB localStorage quota
+      idbStorage.saveMedia({
+        id: billId,
+        entity: 'tada_bill',
+        name: fileName,
+        category: cat,
+        dataUrl: dataUrl
+      }).catch(e => console.warn('Idb bill media save warning:', e));
 
       claimAttachedBills.push(newBill);
 

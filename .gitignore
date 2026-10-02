@@ -3,8 +3,7 @@ dist/
 .vercel/
 .env*
 !.env.example
-scratch/chrome_profile/
-scratch/edge_profile/
+scratch/
 *.log
 .DS_Store
 Thumbs.db

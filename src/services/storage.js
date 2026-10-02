@@ -5,6 +5,8 @@ import { showToast } from '../components/toast.js';
 import { supabaseService } from './supabase.js';
 import { AGRONOMY_QUIZ_QUESTIONS } from './kpiService.js';
 import { BIHAR_BLOCKS, calculateCheckInJourneyKm, calculateDistanceKm, optimizeTourBeatRoute } from '../utils/geo.js';
+import { idbStorage } from './idbStorage.js';
+import { syncQueue } from './syncQueue.js';
 
 const STORAGE_KEY = 'tier_a_retailers_bihar_v3';
 const ASSISTANTS_KEY = 'tier_a_assistants_config_v1';
@@ -27,6 +29,13 @@ class StorageService {
 
   async init() {
     if (this.initialized) return this.rows;
+
+    // Start background optimistic sync queue with exponential backoff
+    try {
+      syncQueue.start();
+    } catch (e) {
+      console.warn('Sync queue start note:', e);
+    }
 
     if (typeof window !== 'undefined' && window.claude && typeof window.claude.use === 'function') {
       try {
@@ -700,8 +709,10 @@ class StorageService {
       }
       localStorage.setItem('tat_live_checkins_v1', JSON.stringify(logs.slice(0, 1000)));
       window.dispatchEvent(new CustomEvent('tracker:checkInLogged', { detail: { entry } }));
-      if (syncToCloud && supabaseService.isReady) {
-        supabaseService.saveCheckInLog(entry).catch(e => console.warn('Supabase checkin log warning:', e));
+
+      // Optimistically enqueue mutation to sync queue with exponential backoff
+      if (syncToCloud) {
+        syncQueue.enqueue('check_in_logs', 'upsert', entry).catch(e => console.warn('Sync queue checkin warning:', e));
       }
     } catch(e) {
       console.error('Error saving checkin log:', e);
@@ -784,10 +795,9 @@ class StorageService {
     window.dispatchEvent(new CustomEvent('tracker:farmerMeetingLogged', { detail: { meeting } }));
     this.triggerChange();
 
-    if (syncToCloud && supabaseService.isReady && supabaseService.client) {
-      supabaseService.client.from('farmer_meetings').upsert(meeting).then(({ error }) => {
-        if (error) console.warn('Supabase farmer_meetings sync note:', error.message);
-      }).catch(e => console.warn('Supabase farmer meeting error:', e));
+    // Optimistically enqueue mutation to sync queue with exponential backoff
+    if (syncToCloud) {
+      syncQueue.enqueue('farmer_meetings', 'upsert', meeting).catch(e => console.warn('Sync queue meeting warning:', e));
     }
     return meeting;
   }
@@ -861,31 +871,43 @@ class StorageService {
 
   saveDemoPlot(plot, syncToCloud = true) {
     const list = this.getDemoPlots();
+    let cleanPlot = { ...plot };
+
+    // Offload high-res photo to IndexedDB to bypass 5MB localStorage limits
+    if (plot.photo_data_url) {
+      idbStorage.saveMedia(plot.id, 'demo_plot_photo', plot.photo_data_url, {
+        crop: plot.crop,
+        farmer_name: plot.farmer_name,
+        hybrid_tested: plot.hybrid_tested
+      }).catch(err => console.warn('idbStorage saveMedia error:', err));
+
+      // Keep lightweight pointer in localStorage record
+      cleanPlot.has_photo = true;
+      delete cleanPlot.photo_data_url;
+    }
+
     const idx = list.findIndex(d => d.id === plot.id);
     if (idx >= 0) {
-      list[idx] = { ...list[idx], ...plot, updated_at: new Date().toISOString() };
+      list[idx] = { ...list[idx], ...cleanPlot, updated_at: new Date().toISOString() };
     } else {
-      list.unshift({ ...plot, updated_at: new Date().toISOString() });
+      list.unshift({ ...cleanPlot, updated_at: new Date().toISOString() });
     }
     this.saveDemoPlotsToLocal(list);
-    window.dispatchEvent(new CustomEvent('tracker:demoPlotLogged', { detail: { plot } }));
+    window.dispatchEvent(new CustomEvent('tracker:demoPlotLogged', { detail: { plot: cleanPlot } }));
     this.triggerChange();
 
-    if (syncToCloud && supabaseService.isReady && supabaseService.client) {
-      supabaseService.client.from('demo_plots').upsert(plot).then(({ error }) => {
-        if (error) console.warn('Supabase demo_plots sync note:', error.message);
-      }).catch(e => console.warn('Supabase demo plot error:', e));
+    if (syncToCloud) {
+      syncQueue.enqueue('demo_plots', 'upsert', cleanPlot);
     }
-    return plot;
+    return cleanPlot;
   }
 
   deleteDemoPlot(id) {
     const list = this.getDemoPlots().filter(d => d.id !== id);
     this.saveDemoPlotsToLocal(list);
+    idbStorage.deleteMedia(id).catch(err => console.warn('idb deleteMedia error:', err));
     this.triggerChange();
-    if (supabaseService.isReady && supabaseService.client) {
-      supabaseService.client.from('demo_plots').delete().eq('id', id).catch(e => console.warn(e));
-    }
+    syncQueue.enqueue('demo_plots', 'delete', { id });
   }
 
   getCompetitorIntel() {
@@ -2594,23 +2616,53 @@ class StorageService {
   }
 
   saveTadaClaim(claim, syncToCloud = true) {
+    // Offload attached bills with large base64 dataUrls to IndexedDB
+    if (claim.attachedBills && Array.isArray(claim.attachedBills)) {
+      claim.attachedBills.forEach(b => {
+        if (b.dataUrl && b.dataUrl.length > 500) {
+          idbStorage.saveMedia({
+            id: b.id,
+            entity: 'tada_bill',
+            entityId: claim.id,
+            category: b.category,
+            name: b.name,
+            amount: b.amount,
+            dataUrl: b.dataUrl
+          }).catch(e => console.warn('Idb bill save note:', e));
+        }
+      });
+    }
+
+    const cleanClaim = {
+      ...claim,
+      // For localStorage, keep bill metadata and lightweight thumbnails/placeholders
+      attachedBills: (claim.attachedBills || []).map(b => ({
+        id: b.id,
+        name: b.name,
+        category: b.category,
+        amount: b.amount,
+        notes: b.notes,
+        uploadedAt: b.uploadedAt,
+        isStoredInIdb: true
+      }))
+    };
+
     const list = this.getTadaClaims();
-    const idx = list.findIndex(c => c.id === claim.id);
+    const idx = list.findIndex(c => c.id === cleanClaim.id);
     if (idx >= 0) {
-      list[idx] = { ...list[idx], ...claim, updatedAt: new Date().toISOString() };
+      list[idx] = { ...list[idx], ...cleanClaim, updatedAt: new Date().toISOString() };
     } else {
-      list.unshift({ ...claim, createdAt: new Date().toISOString() });
+      list.unshift({ ...cleanClaim, createdAt: new Date().toISOString() });
     }
     this.saveTadaClaimsToLocal(list);
-    window.dispatchEvent(new CustomEvent('tracker:tadaClaimChanged', { detail: { claim } }));
+    window.dispatchEvent(new CustomEvent('tracker:tadaClaimChanged', { detail: { claim: cleanClaim } }));
     this.triggerChange();
 
-    if (syncToCloud && supabaseService.isReady && supabaseService.client) {
-      supabaseService.client.from('tada_claims').upsert(claim).then(({ error }) => {
-        if (error) console.warn('Supabase tada_claims sync note:', error.message);
-      }).catch(e => console.warn('Supabase tada sync error:', e));
+    // Optimistically enqueue mutation to sync queue with exponential backoff
+    if (syncToCloud) {
+      syncQueue.enqueue('tada_claims', 'upsert', cleanClaim).catch(e => console.warn('Sync queue tada warning:', e));
     }
-    return claim;
+    return cleanClaim;
   }
 
   updateTadaClaimStatus(claimId, updateData, syncToCloud = true) {
@@ -3591,10 +3643,9 @@ class StorageService {
     }
     this.saveAttendanceRecordsToLocal(list);
 
-    if (syncToCloud && supabaseService.isReady && supabaseService.client) {
-      supabaseService.client.from('attendance_records').upsert(record).then(({ error }) => {
-        if (error) console.warn('Supabase attendance record sync:', error.message);
-      }).catch(e => console.warn(e));
+    // Optimistically enqueue mutation to sync queue with exponential backoff
+    if (syncToCloud) {
+      syncQueue.enqueue('attendance_records', 'upsert', record).catch(e => console.warn('Sync queue attendance warning:', e));
     }
     return record;
   }

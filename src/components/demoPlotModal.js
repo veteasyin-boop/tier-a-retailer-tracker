@@ -4,6 +4,7 @@
 // ========================================================
 
 import { storage } from '../services/storage.js';
+import { idbStorage } from '../services/idbStorage.js';
 import { showToast } from './toast.js';
 import { CROP_PORTFOLIO, DEMO_STAGES } from '../services/kpiService.js';
 import { escapeHtml, detectBrowserLocation } from '../utils/geo.js';
@@ -112,6 +113,24 @@ export function openDemoPlotModal(assistantInfo, existingPlot = null, onSaved) {
             <textarea id="demoObservations" class="form-control" rows="3" placeholder="Note down vigor, cob placement, stay-green, grain luster, disease tolerance compared to the competitor plot..." style="width: 100%; padding: 8px 10px; font-size: 13px;">${existingPlot ? escapeHtml(existingPlot.observations || '') : ''}</textarea>
           </div>
 
+          <!-- High-Res Photo Attachment stored in IndexedDB (bypasses localStorage 5MB limit) -->
+          <div style="background: var(--surface-bg); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px dashed var(--line);">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+              <label class="form-label" style="font-size: 12px; font-weight: 700; margin: 0; display: flex; align-items: center; gap: 6px;">
+                <span>📸</span>
+                <span>Demo Plot Field Photo</span>
+                <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; font-size: 10px;">IndexedDB Powered</span>
+              </label>
+              <span id="lblDemoPhotoStatus" style="font-size: 11px; color: var(--muted);">Optional (PNG / JPG)</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <input type="file" id="iptDemoPhoto" accept="image/*" class="form-control" style="font-size: 12px; flex: 1; padding: 5px;">
+              <div id="pnlDemoPhotoThumb" style="display: none; width: 44px; height: 44px; border-radius: 6px; overflow: hidden; border: 1.5px solid #10b981; flex-shrink: 0;">
+                <img id="imgDemoPhotoThumb" src="" alt="Plot Thumb" style="width: 100%; height: 100%; object-fit: cover;">
+              </div>
+            </div>
+          </div>
+
           <div style="display: flex; gap: 10px; align-items: center; justify-content: flex-end; margin-top: 8px;">
             <button type="button" class="btn btn-secondary" id="btnCancelDemo" style="padding: 10px 18px;">Cancel</button>
             <button type="submit" class="btn btn-primary" style="padding: 10px 22px; font-weight: 700;">
@@ -137,6 +156,52 @@ export function openDemoPlotModal(assistantInfo, existingPlot = null, onSaved) {
 
   const form = document.getElementById('demoForm');
   const submitBtn = form?.querySelector('button[type="submit"]');
+
+  // Handle photo file selection and thumbnail preview
+  let pickedPhotoDataUrl = null;
+  let pickedPhotoName = null;
+
+  // Load existing photo from IndexedDB if in edit mode
+  if (existingPlot?.id) {
+    idbStorage.getMedia(`photo_${existingPlot.id}`).then(media => {
+      if (media && media.dataUrl) {
+        pickedPhotoDataUrl = media.dataUrl;
+        const thumbPnl = document.getElementById('pnlDemoPhotoThumb');
+        const thumbImg = document.getElementById('imgDemoPhotoThumb');
+        const statusLbl = document.getElementById('lblDemoPhotoStatus');
+        if (thumbPnl && thumbImg) {
+          thumbImg.src = media.dataUrl;
+          thumbPnl.style.display = 'block';
+        }
+        if (statusLbl) statusLbl.textContent = 'Existing photo in IndexedDB';
+      }
+    }).catch(e => console.warn('Idb existing photo check:', e));
+  }
+
+  const fileInput = document.getElementById('iptDemoPhoto');
+  fileInput?.addEventListener('change', (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    pickedPhotoName = file.name;
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      pickedPhotoDataUrl = evt.target.result;
+      const thumbPnl = document.getElementById('pnlDemoPhotoThumb');
+      const thumbImg = document.getElementById('imgDemoPhotoThumb');
+      const statusLbl = document.getElementById('lblDemoPhotoStatus');
+      if (thumbPnl && thumbImg) {
+        thumbImg.src = pickedPhotoDataUrl;
+        thumbPnl.style.display = 'block';
+      }
+      if (statusLbl) {
+        const kb = Math.round(file.size / 1024);
+        statusLbl.textContent = `Attached: ${file.name} (${kb} KB)`;
+        statusLbl.style.color = '#10b981';
+      }
+    };
+    reader.readAsDataURL(file);
+  });
 
   form?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -188,7 +253,9 @@ export function openDemoPlotModal(assistantInfo, existingPlot = null, onSaved) {
       yield_result_kg_acre: yieldKg,
       observations,
       lat: coords?.lat || existingPlot?.lat || null,
-      lng: coords?.lng || existingPlot?.lng || null
+      lng: coords?.lng || existingPlot?.lng || null,
+      photo_data_url: pickedPhotoDataUrl,
+      photo_name: pickedPhotoName
     };
 
     try {

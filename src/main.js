@@ -48,6 +48,24 @@ async function bootstrap() {
     switchView('field');
   });
 
+  window.addEventListener('tracker:syncStatus', (e) => {
+    const { isOnline, isSyncing, pendingCount } = e.detail || {};
+    const storageLabel = document.getElementById('storageLabel');
+    const storagePill = document.getElementById('storagePill');
+    if (storageLabel) {
+      if (isSyncing) {
+        storageLabel.textContent = `Syncing (${pendingCount})...`;
+      } else if (pendingCount > 0) {
+        storageLabel.textContent = isOnline ? `Queued (${pendingCount})` : `Offline (${pendingCount})`;
+      } else {
+        storageLabel.textContent = isOnline ? 'Supabase Connected' : 'Offline Mode';
+      }
+    }
+    if (storagePill) {
+      storagePill.title = `Network: ${isOnline ? 'Online' : 'Offline'} • Pending queue in IndexedDB: ${pendingCount || 0} • Click to configure Supabase`;
+    }
+  });
+
   // ESC key closes bottom sheet
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeCounterBottomSheet();
