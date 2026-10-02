@@ -1586,5 +1586,335 @@ tr:hover td {
   max-width: 85%;
 }
 
+/* ==========================================================================
+   TRUEIN APP LUXURY MOBILE WORKFORCE DESIGN SYSTEM
+   ========================================================================== */
+
+.truein-hero-console {
+  background: linear-gradient(145deg, #0b132b 0%, #1c2541 50%, #0f172a 100%);
+  color: #f8fafc;
+  border-radius: 24px;
+  padding: 24px;
+  margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 16px 36px -8px rgba(11, 19, 43, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.truein-hero-console::before {
+  content: '';
+  position: absolute;
+  top: -80px;
+  right: -80px;
+  width: 240px;
+  height: 240px;
+  background: radial-gradient(circle, rgba(16, 185, 129, 0.22) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.truein-hero-console::after {
+  content: '';
+  position: absolute;
+  bottom: -60px;
+  left: 20%;
+  width: 200px;
+  height: 200px;
+  background: radial-gradient(circle, rgba(59, 130, 246, 0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.truein-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+}
+
+.truein-user-profile {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.truein-avatar-circle {
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.4);
+  position: relative;
+  flex-shrink: 0;
+}
+
+.truein-avatar-badge {
+  position: absolute;
+  bottom: -3px;
+  right: -3px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #10b981;
+  border: 2.5px solid #0b132b;
+}
+
+.truein-avatar-badge.inactive {
+  background: #f59e0b;
+}
+
+.truein-clock-card {
+  text-align: right;
+}
+
+.truein-digital-time {
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #ffffff;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.truein-digital-sec {
+  font-size: 15px;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.truein-digital-date {
+  font-size: 11.5px;
+  color: #94a3b8;
+  font-weight: 600;
+}
+
+/* Big Glowing Truein Punch Console */
+.truein-punch-center {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+  position: relative;
+  z-index: 1;
+}
+
+.truein-punch-btn {
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  position: relative;
+  transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  flex-shrink: 0;
+  margin: 0 auto;
+}
+
+.truein-punch-btn.punch-in {
+  background: radial-gradient(circle at 35% 35%, #34d399, #059669);
+  box-shadow: 0 0 0 8px rgba(16, 185, 129, 0.15), 0 0 0 18px rgba(16, 185, 129, 0.08), 0 12px 28px rgba(5, 150, 105, 0.45);
+}
+
+.truein-punch-btn.punch-in:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 12px rgba(16, 185, 129, 0.25), 0 0 0 24px rgba(16, 185, 129, 0.12), 0 16px 36px rgba(5, 150, 105, 0.55);
+}
+
+.truein-punch-btn.punch-out {
+  background: radial-gradient(circle at 35% 35%, #fb7185, #e11d48);
+  box-shadow: 0 0 0 8px rgba(225, 29, 72, 0.15), 0 0 0 18px rgba(225, 29, 72, 0.08), 0 12px 28px rgba(225, 29, 72, 0.45);
+}
+
+.truein-punch-btn.punch-out:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 0 12px rgba(225, 29, 72, 0.25), 0 0 0 24px rgba(225, 29, 72, 0.12), 0 16px 36px rgba(225, 29, 72, 0.55);
+}
+
+.truein-punch-icon {
+  font-size: 30px;
+  margin-bottom: 2px;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.2));
+}
+
+.truein-punch-label {
+  font-size: 13.5px;
+  font-weight: 800;
+}
+
+.truein-punch-sub {
+  font-size: 9px;
+  opacity: 0.85;
+  letter-spacing: 0;
+  text-transform: none;
+  font-weight: 600;
+}
+
+.truein-shift-status {
+  flex: 1;
+  min-width: 220px;
+}
+
+.truein-metrics-pills {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.truein-metric-tile {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 10px 12px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.truein-metric-tile:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+/* Truein 6-Tile Action Bento Grid */
+.truein-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+@media (max-width: 640px) {
+  .truein-bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.truein-bento-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 16px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.truein-bento-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--line-strong);
+}
+
+.truein-bento-card:active {
+  transform: scale(0.97);
+}
+
+.truein-bento-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  margin-bottom: 12px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+}
+
+.truein-bento-title {
+  font-family: var(--font-heading);
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--ink);
+  line-height: 1.25;
+}
+
+.truein-bento-sub {
+  font-size: 11.5px;
+  color: var(--muted);
+  margin-top: 4px;
+  font-weight: 600;
+}
+
+.truein-bento-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-size: 10.5px;
+  font-weight: 800;
+  padding: 2px 7px;
+  border-radius: 9999px;
+}
+
+/* Truein Style Ticket / Pass Counter Card */
+.truein-counter-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 16px;
+  margin-bottom: 12px;
+  transition: all 0.24s ease;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
+}
+
+.truein-counter-card:hover {
+  box-shadow: var(--shadow-md);
+  border-color: rgba(16, 185, 129, 0.3);
+  transform: translateY(-2px);
+}
+
+.truein-dealer-avatar {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  flex-shrink: 0;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.1);
+}
+
+
 
 

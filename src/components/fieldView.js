@@ -480,67 +480,262 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
   const startIdx = (nearbyPage - 1) * nearbyPageSize;
   const pageRows = filteredNearby.slice(startIdx, startIdx + nearbyPageSize);
 
+  const repTotalBooked = myStationRows.reduce((sum, r) => sum + (Number(r.total_orders_value) || 0), 0);
+  const repInitials = (repInfo.name || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'MO';
+  const nowObj = new Date();
+  const timeStr = nowObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  const timeParts = timeStr.split(' ');
+  const timeBase = timeParts[0];
+  const ampm = timeParts[1] || '';
+  const dateLongStr = nowObj.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+  const isPunchedIn = Boolean(todayAtt?.punchIn && !todayAtt?.punchOut);
+  const isPunchedOut = Boolean(todayAtt?.punchOut);
+
   container.innerHTML = `
-    <!-- Active MGO Assistant Profile & 100-Point KPI Header -->
-    <div class="card" style="padding: 14px 20px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; background: var(--surface-card); border-left: 4px solid ${kpiData.grade.color}; border-radius: var(--radius-md); box-shadow: var(--shadow-card);">
-      <div style="display: flex; align-items: center; gap: 12px;">
-        <div style="width: 44px; height: 44px; border-radius: var(--radius-sm); background: var(--primary-subtle); color: var(--primary); display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 800; box-shadow: 0 4px 12px rgba(16, 185, 129, 0.25);">
-          👤
-        </div>
-        <div>
-          <div style="font-weight: 800; font-size: 16px; color: var(--ink); font-family: var(--font-heading); letter-spacing: -0.02em;">
-            ${escapeHtml(repInfo.name)}
+    <!-- Top Utility & Quick Action Strip -->
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; padding: 4px 2px;">
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <span class="badge" style="background: rgba(16, 185, 129, 0.15); color: #059669; font-weight: 800; font-size: 11px; padding: 4px 10px;">
+          🌾 Bihar Agronomy Grid
+        </span>
+        <span style="font-size: 12px; color: var(--muted); font-weight: 600;">
+          Station: <strong style="color: var(--ink);">${escapeHtml(repInfo.hq)}</strong> (${escapeHtml(repInfo.district)})
+        </span>
+      </div>
+
+      <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary btn-sm" id="btnRepNotifications" style="position: relative; font-size: 11.5px; font-weight: 700; padding: 5px 10px;">
+          🔔 Notices ${unreadNotifs.length > 0 ? `<span class="badge" style="background: #ef4444; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 50%; margin-left: 4px;">${unreadNotifs.length}</span>` : ''}
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderLeave" style="font-size: 11.5px; font-weight: 700; color: #059669; padding: 5px 10px;">
+          🏖️ Leave
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderStockLedger" style="font-size: 11.5px; font-weight: 700; color: #16a34a; padding: 5px 10px;">
+          📦 Stock (${repStockSummary.totalBalanceUnits})
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderWeekly" style="font-size: 11.5px; font-weight: 700; padding: 5px 10px;">
+          📅 Weekly
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderSuccess" style="font-size: 11.5px; font-weight: 700; padding: 5px 10px;">
+          🌱 SOP Guide
+        </button>
+        <button class="btn btn-secondary btn-sm" id="btnRepSwitchLogout" style="color: var(--danger); font-weight: 700; font-size: 11.5px; border-color: rgba(244, 63, 94, 0.3); padding: 5px 10px;">
+          🚪 Logout
+        </button>
+      </div>
+    </div>
+
+    <!-- TRUEIN-INSPIRED LUXURY WORKFORCE CONSOLE -->
+    <div class="truein-hero-console">
+      <div class="truein-profile-header">
+        <div class="truein-user-profile">
+          <div class="truein-avatar-circle">
+            ${escapeHtml(repInitials)}
+            <div class="truein-avatar-badge ${isPunchedIn ? '' : 'inactive'}"></div>
           </div>
-          <div style="font-size: 12px; color: var(--muted); font-weight: 500; margin-top: 1px;">
-            Station HQ: <strong style="color: var(--ink);">${escapeHtml(repInfo.hq)}</strong> · District: <strong style="color: var(--ink);">${escapeHtml(repInfo.district)}</strong> · <strong style="color: var(--primary);">${totalMyRetailers} Assigned Counters</strong>
+          <div>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+              <span style="font-family: var(--font-heading); font-size: 18px; font-weight: 800; color: #fff; letter-spacing: -0.02em;">
+                ${escapeHtml(repInfo.name)}
+              </span>
+              <span class="badge" style="background: ${isPunchedOut ? 'rgba(148, 163, 184, 0.25)' : isPunchedIn ? 'rgba(16, 185, 129, 0.25)' : 'rgba(239, 68, 68, 0.25)'}; color: ${isPunchedOut ? '#94a3b8' : isPunchedIn ? '#34d399' : '#fca5a5'}; font-size: 10.5px; font-weight: 800; border: 1px solid currentColor;">
+                ${isPunchedOut ? '🏁 SHIFT ENDED' : isPunchedIn ? '🟢 ON DUTY' : '🔴 OFF DUTY'}
+              </span>
+            </div>
+            <div style="font-size: 12px; color: #94a3b8; font-weight: 500; margin-top: 3px;">
+              📍 HQ: <strong style="color: #f1f5f9;">${escapeHtml(repInfo.hq)}</strong> · District: <strong style="color: #f1f5f9;">${escapeHtml(repInfo.district)}</strong> · <strong style="color: #38bdf8;">${totalMyRetailers} Assigned Counters</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="truein-clock-card">
+          <div class="truein-digital-time">
+            ${escapeHtml(timeBase)}
+            <span class="truein-digital-sec">${escapeHtml(ampm)}</span>
+          </div>
+          <div class="truein-digital-date">
+            📅 ${escapeHtml(dateLongStr)}
+          </div>
+          <div style="font-size: 11px; color: #38bdf8; font-weight: 600; margin-top: 2px;">
+            ${userCoords?.isRealGps ? '🟢 GPS Lock ±' + (userCoords.accuracy || 20) + 'm' : '⚠️ Station Coordinates'}
           </div>
         </div>
       </div>
 
-      <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-        <!-- Clickable 100-Point Scorecard Pill -->
-        <button type="button" class="btn" id="btnRepKpiScorecard" style="background: ${kpiData.grade.bg}; border: 1.5px solid ${kpiData.grade.color}; color: ${kpiData.grade.color}; padding: 7px 15px; border-radius: var(--radius-pill); font-weight: 800; font-size: 13px; display: flex; align-items: center; gap: 6px; box-shadow: var(--shadow-sm); cursor: pointer;" title="Click to view full 100-Point KPI Breakdown & SOP standards">
-          <span>${kpiData.grade.icon}</span>
-          <span>${kpiData.totalScore}/100</span>
-          <span style="font-size: 11px; opacity: 0.9;">· ${kpiData.grade.label}</span>
-          <span style="font-size: 12px; margin-left: 2px;">ℹ️</span>
-        </button>
+      <!-- Center Interactive Truein Tactile Punch Button & Shift Summary -->
+      <div class="truein-punch-center">
+        <div class="truein-shift-status">
+          <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: #94a3b8; font-weight: 700;">Shift Protocol (SOP)</span>
+            <span style="font-size: 11.5px; color: #38bdf8; font-weight: 700;">09:30 AM – 06:30 PM</span>
+          </div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+            <div style="background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+              <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Punch In</div>
+              <div style="font-size: 14px; font-weight: 800; color: ${todayAtt?.punchIn ? '#34d399' : '#f87171'}; margin-top: 2px;">
+                ${todayAtt?.punchIn ? todayAtt.punchIn : 'Pending'}
+              </div>
+            </div>
+            <div style="background: rgba(255,255,255,0.06); padding: 8px 12px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08);">
+              <div style="font-size: 10px; color: #94a3b8; text-transform: uppercase; font-weight: 700;">Punch Out</div>
+              <div style="font-size: 14px; font-weight: 800; color: ${todayAtt?.punchOut ? '#38bdf8' : '#94a3b8'}; margin-top: 2px;">
+                ${todayAtt?.punchOut ? todayAtt.punchOut : '--:--'}
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 10px; display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 11.5px; color: #cbd5e1;">Live Tracking:</span>
+            <span class="badge" style="background: rgba(56, 189, 248, 0.15); color: #38bdf8; font-size: 10px; font-weight: 800;">
+              Geofenced Anti-Spoofing GPS
+            </span>
+          </div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnRepNotifications" style="position: relative; font-size: 12px; font-weight: 700;">
-          🔔 Notices ${unreadNotifs.length > 0 ? `<span class="badge" style="background: #ef4444; color: #fff; font-size: 10px; padding: 2px 6px; border-radius: 50%; margin-left: 4px;">${unreadNotifs.length}</span>` : ''}
-        </button>
+        <div>
+          <button type="button" class="truein-punch-btn ${isPunchedIn ? 'punch-out' : 'punch-in'}" id="btnTrueinHeroPunch" title="Click to record official attendance punch">
+            <span class="truein-punch-icon">${isPunchedOut ? '✅' : isPunchedIn ? '🏁' : '👉'}</span>
+            <span class="truein-punch-label">${isPunchedOut ? 'SHIFT DONE' : isPunchedIn ? 'PUNCH OUT' : 'PUNCH IN'}</span>
+            <span class="truein-punch-sub">${isPunchedOut ? 'Muster Recorded' : isPunchedIn ? 'Tap to Close Shift' : 'Tap to Mark Duty'}</span>
+          </button>
+        </div>
+      </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderSmartBeat" style="font-size: 12px; font-weight: 800; color: #0284c7; border-color: rgba(2, 132, 199, 0.45); background: rgba(2, 132, 199, 0.06);" title="Smart Tour Beat & GPS Route Optimizer">
-          🗺️ Beat Optimizer
-        </button>
+      <!-- Quick Metrics Bar inside Hero Console -->
+      <div class="truein-metrics-pills">
+        <div class="truein-metric-tile" id="btnHeroKpiPill" style="cursor: pointer;" title="View 100-Point KPI Scorecard">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">100-Pt KPI</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: ${kpiData.grade.color}; margin-top: 2px;">
+            ${kpiData.grade.icon} ${kpiData.totalScore}/100
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">${kpiData.grade.label}</div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderTadaClaim" style="font-size: 12px; font-weight: 800; color: #d97706; border-color: rgba(245, 158, 11, 0.45); background: rgba(245, 158, 11, 0.06);" title="Submit Daily TA/DA Mileage Claim">
-          💰 TA/DA Claim
-        </button>
+        <div class="truein-metric-tile" id="btnHeroPjpPill" style="cursor: pointer;" title="Today's PJP Journey Stops">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">PJP Verified</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #34d399; margin-top: 2px;">
+            ${todayVerifiedCount}/${todayTourRows.length || totalMyRetailers}
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">Stops Done</div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderAttendance" style="font-size: 12px; font-weight: 800; color: #1d4ed8; border-color: rgba(29, 78, 216, 0.45); background: rgba(29, 78, 216, 0.06);" title="हाजिरी - Online Attendance & Muster Roll">
-          🕒 हाजिरी ${todayAtt?.punchOut ? '(🏁 Out)' : todayAtt?.punchIn ? '(🟢 In)' : '(🔴 Due)'}
-        </button>
+        <div class="truein-metric-tile" id="btnHeroOrderPill" style="cursor: pointer;" title="Total Dealer Sales Booked">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Orders Booked</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #38bdf8; margin-top: 2px;">
+            ₹${repTotalBooked > 0 ? (repTotalBooked >= 1000 ? (repTotalBooked / 1000).toFixed(1) + 'k' : repTotalBooked) : '0'}
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">Pipeline Value</div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderLeave" style="font-size: 12px; font-weight: 800; color: #059669; border-color: rgba(5, 150, 105, 0.45); background: rgba(5, 150, 105, 0.06);" title="Leave Management - अवकाश प्रबंधन">
-          🏖️ Leave
-        </button>
+        <div class="truein-metric-tile" id="btnHeroLeadsPill" style="cursor: pointer;" title="Farmer Demand Generation Leads">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Farmer Leads</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #fbbf24; margin-top: 2px;">
+            ${repLeads.length}
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">Prospects</div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderStockLedger" style="font-size: 12px; font-weight: 700; color: #16a34a; border-color: rgba(22, 163, 74, 0.4);" title="View physical inventory allocated & liquidation ledger">
-          📦 Stock Ledger ${repStockSummary.totalBalanceUnits > 0 ? `(${repStockSummary.totalBalanceUnits})` : ''}
-        </button>
+        <div class="truein-metric-tile" id="btnHeroFollowupsPill" style="cursor: pointer;" title="Pending Follow-ups Due">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Follow-ups</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #f87171; margin-top: 2px;">
+            ${storage.getUpcomingFollowUps(repInfo.name).length}
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">Callbacks</div>
+        </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderWeekly" style="font-size: 12px; font-weight: 700;">
-          📅 Weekly Review
-        </button>
+        <div class="truein-metric-tile" id="btnHeroStockPill" style="cursor: pointer;" title="Physical Stock Allocated">
+          <div style="font-size: 10px; color: #94a3b8; font-weight: 700; text-transform: uppercase;">Stock Hand</div>
+          <div style="font-size: 14.5px; font-weight: 800; color: #a78bfa; margin-top: 2px;">
+            ${repStockSummary.totalBalanceUnits}
+          </div>
+          <div style="font-size: 9.5px; color: #cbd5e1; font-weight: 600;">Units Balance</div>
+        </div>
+      </div>
+    </div>
 
-        <button type="button" class="btn btn-secondary btn-sm" id="btnHeaderSuccess" style="font-size: 12px; font-weight: 700;">
-          🌱 SOP Guide
-        </button>
+    <!-- TRUEIN-INSPIRED 6-PILLAR ACTION BENTO GRID -->
+    <div class="truein-bento-grid">
+      <!-- Card 1: Smart Beat TSP -->
+      <div class="truein-bento-card" id="bentoSmartBeat">
+        <span class="truein-bento-badge" style="background: rgba(16, 185, 129, 0.15); color: #059669;">
+          ${todayTourRows.length} Stops
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: #fff;">
+          🗺️
+        </div>
+        <div>
+          <div class="truein-bento-title">Smart Beat (TSP)</div>
+          <div class="truein-bento-sub">GPS Route & Optimizer</div>
+        </div>
+      </div>
 
-        <button class="btn btn-secondary btn-sm" id="btnRepSwitchLogout" style="color: var(--danger); font-weight: 700; border-color: rgba(244, 63, 94, 0.3);">
-          🚪 Logout
-        </button>
+      <!-- Card 2: Station Retailers -->
+      <div class="truein-bento-card" id="bentoCounters">
+        <span class="truein-bento-badge" style="background: rgba(2, 132, 199, 0.15); color: #0284c7;">
+          ${totalMyRetailers} Counters
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #38bdf8 0%, #0284c7 100%); color: #fff;">
+          🏬
+        </div>
+        <div>
+          <div class="truein-bento-title">Counter Directory</div>
+          <div class="truein-bento-sub">Station Retailers & Audits</div>
+        </div>
+      </div>
+
+      <!-- Card 3: Due Follow-ups -->
+      <div class="truein-bento-card" id="bentoFollowUps">
+        <span class="truein-bento-badge" style="background: ${storage.getUpcomingFollowUps(repInfo.name).length > 0 ? 'rgba(239, 68, 68, 0.15)' : 'rgba(100, 116, 139, 0.15)'}; color: ${storage.getUpcomingFollowUps(repInfo.name).length > 0 ? '#dc2626' : '#64748b'};">
+          ${storage.getUpcomingFollowUps(repInfo.name).length} Due
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: #fff;">
+          📅
+        </div>
+        <div>
+          <div class="truein-bento-title">Due Follow-ups</div>
+          <div class="truein-bento-sub">Pipeline & Promises</div>
+        </div>
+      </div>
+
+      <!-- Card 4: Farmer CRM -->
+      <div class="truein-bento-card" id="bentoFarmerCrm">
+        <span class="truein-bento-badge" style="background: rgba(139, 92, 246, 0.15); color: #7c3aed;">
+          ${repLeads.length} Leads
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #a78bfa 0%, #7c3aed 100%); color: #fff;">
+          🌾
+        </div>
+        <div>
+          <div class="truein-bento-title">Farmer CRM</div>
+          <div class="truein-bento-sub">Demand Generation & Crops</div>
+        </div>
+      </div>
+
+      <!-- Card 5: Field Outreach -->
+      <div class="truein-bento-card" id="bentoMeetingsDemo">
+        <span class="truein-bento-badge" style="background: rgba(236, 72, 153, 0.15); color: #db2777;">
+          ${repMeetings.length + repDemos.length} Held
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #f472b6 0%, #db2777 100%); color: #fff;">
+          👥
+        </div>
+        <div>
+          <div class="truein-bento-title">Meetings & Demos</div>
+          <div class="truein-bento-sub">Field Trials & Gatherings</div>
+        </div>
+      </div>
+
+      <!-- Card 6: TA/DA Mileage -->
+      <div class="truein-bento-card" id="bentoTadaClaim">
+        <span class="truein-bento-badge" style="background: rgba(16, 185, 129, 0.15); color: #047857;">
+          ₹ Claims
+        </span>
+        <div class="truein-bento-icon-wrapper" style="background: linear-gradient(135deg, #34d399 0%, #059669 100%); color: #fff;">
+          💰
+        </div>
+        <div>
+          <div class="truein-bento-title">TA/DA Mileage</div>
+          <div class="truein-bento-sub">GPS Km & Fuel Allowance</div>
+        </div>
       </div>
     </div>
 
@@ -1083,6 +1278,56 @@ function renderNearbyRetailersView(container, allRows, repInfo) {
   const handleOpenAttendance = () => openAttendanceModal({ assistant: repInfo.name });
   document.getElementById('btnHeaderAttendance')?.addEventListener('click', handleOpenAttendance);
   document.getElementById('btnQuickAttendancePunch')?.addEventListener('click', handleOpenAttendance);
+  document.getElementById('btnTrueinHeroPunch')?.addEventListener('click', handleOpenAttendance);
+
+  // Hero console metric tiles
+  document.getElementById('btnHeroKpiPill')?.addEventListener('click', () => {
+    document.getElementById('btnRepKpiScorecard')?.click();
+  });
+  document.getElementById('btnHeroPjpPill')?.addEventListener('click', () => {
+    activeSubTab = 'tour';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('btnHeroOrderPill')?.addEventListener('click', () => {
+    activeSubTab = 'nearby';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('btnHeroLeadsPill')?.addEventListener('click', () => {
+    activeSubTab = 'leads';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('btnHeroFollowupsPill')?.addEventListener('click', () => {
+    activeSubTab = 'followups';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+
+  // Truein 6-Pillar Bento Grid Cards
+  document.getElementById('bentoSmartBeat')?.addEventListener('click', handleOpenSmartBeat);
+  document.getElementById('bentoCounters')?.addEventListener('click', () => {
+    activeSubTab = 'nearby';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('bentoFollowUps')?.addEventListener('click', () => {
+    activeSubTab = 'followups';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('bentoFarmerCrm')?.addEventListener('click', () => {
+    activeSubTab = 'leads';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('bentoMeetingsDemo')?.addEventListener('click', () => {
+    activeSubTab = 'farmers';
+    nearbyPage = 1;
+    renderNearbyRetailersView(container, storage.rows, repInfo);
+  });
+  document.getElementById('bentoTadaClaim')?.addEventListener('click', handleOpenTadaClaim);
 
   // Leave Management modal
   const handleOpenLeave = () => openLeaveModal({ assistant: repInfo.name });
@@ -1441,23 +1686,56 @@ function renderCardsList(rows, currentRep, repInfo, mainContainer) {
     const inTour = tourIds.has(r.id);
     const isLiveVerified = Boolean(r.verifiedVisit && r.checkInDate === todayStr);
 
+    const retailerInitials = (r.retailer || '').trim().split(/\s+/).map(w => w[0]).slice(0, 2).join('').toUpperCase() || 'RT';
+    const avatarGradients = [
+      'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+      'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+      'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)',
+      'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+      'linear-gradient(135deg, #ec4899 0%, #be185d 100%)',
+      'linear-gradient(135deg, #14b8a6 0%, #0f766e 100%)'
+    ];
+    const gradIndex = Math.abs(retailerInitials.charCodeAt(0) + (retailerInitials.charCodeAt(1) || 0)) % avatarGradients.length;
+    const avatarGrad = avatarGradients[gradIndex];
+
     return `
-      <div class="mobile-counter-card status-${safeLower(r.status || 'pending')}" id="card_${r.id}">
-        <!-- Card Header Row -->
-        <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+      <div class="truein-counter-card mobile-counter-card status-${safeLower(r.status || 'pending')}" id="card_${r.id}">
+        <!-- Top Row with Dealer Avatar & Details -->
+        <div style="display: flex; align-items: flex-start; gap: 14px;">
+          <!-- Truein Dealer Initials Avatar -->
+          <div class="truein-dealer-avatar" style="background: ${avatarGrad};">
+            ${escapeHtml(retailerInitials)}
+          </div>
+
           <div style="flex: 1; min-width: 0;">
-            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 5px;">
-              ${activeSubTab === 'tour' ? `<span class="badge" style="background: var(--ink); color: #fff; font-weight: 800; font-size: 10px;">Stop #${idx + 1}</span>` : ''}
-              <span class="badge ${r.isExactBlock ? 'badge-visited' : 'badge-called'}" style="font-size: 10.5px;">
-                📍 ${distDisplay}
-              </span>
-              <span class="badge badge-${safeLower(r.status || 'pending')}" style="font-size: 10.5px;">
-                ${escapeHtml(r.status || 'Pending')}
-              </span>
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                ${activeSubTab === 'tour' ? `<span class="badge" style="background: var(--ink); color: #fff; font-weight: 800; font-size: 10px;">Stop #${idx + 1}</span>` : ''}
+                <span class="badge ${r.isExactBlock ? 'badge-visited' : 'badge-called'}" style="font-size: 10px; font-weight: 700;">
+                  📍 ${distDisplay}
+                </span>
+                <span class="badge badge-${safeLower(r.status || 'pending')}" style="font-size: 10px; font-weight: 700;">
+                  ${escapeHtml(r.status || 'Pending')}
+                </span>
+              </div>
+
+              <!-- Quick Action Circles -->
+              <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                ${cleanPhone ? `
+                  <a href="${telUrl}" class="action-circle-btn btn-call" title="Call ${escapeHtml(r.retailer)}">📞</a>
+                  <a href="${waUrl}" target="_blank" rel="noopener" class="action-circle-btn btn-wa" title="WhatsApp Message">💬</a>
+                ` : ''}
+                <a href="${mapUrl}" target="_blank" rel="noopener" class="action-circle-btn btn-directions" title="Navigate on Google Maps">🧭</a>
+                <button type="button" class="action-circle-btn btn-star ${inTour ? 'in-tour' : ''} btn-toggle-tour" data-id="${r.id}" title="${inTour ? 'In Today\'s Tour' : 'Add to Tour'}">
+                  ${inTour ? '★' : '☆'}
+                </button>
+              </div>
             </div>
+
             <div class="retailer-name" style="font-size: 16px; font-weight: 800; color: var(--ink); letter-spacing: -0.02em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
               ${escapeHtml(r.retailer)}
             </div>
+
             <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin-top: 3px;">
               <span>📍 ${escapeHtml(r.block || 'N/A')}, ${escapeHtml(r.district || 'Bihar')}</span>
               <span class="badge" style="background: rgba(0,0,0,0.04); font-size: 10.5px; border: 1px solid var(--line);">
@@ -1473,26 +1751,15 @@ function renderCardsList(rows, currentRep, repInfo, mainContainer) {
                   📦 ₹${Number(r.total_orders_value).toLocaleString('en-IN')} Booked
                 </span>
               ` : ''}
-              ${r.potentialFor ? `<span class="badge" style="background: var(--surface-alt); color: var(--primary); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line);">🌱 ${escapeHtml(r.potentialFor)}</span>` : ''}
-              ${r.potentialSell ? `<span class="badge" style="background: var(--surface-alt); color: var(--ink); font-size: 11px; padding: 2px 8px; border: 1px solid var(--line);">💰 ₹${escapeHtml(r.potentialSell)}</span>` : ''}
+              ${r.potentialFor ? `<span class="badge" style="background: var(--surface-alt); color: var(--primary); font-size: 10.5px; padding: 2px 7px; border: 1px solid var(--line);">🌱 ${escapeHtml(r.potentialFor)}</span>` : ''}
+              ${r.potentialSell ? `<span class="badge" style="background: var(--surface-alt); color: var(--ink); font-size: 10.5px; padding: 2px 7px; border: 1px solid var(--line);">💰 ₹${escapeHtml(r.potentialSell)}</span>` : ''}
             </div>
+
             ${r.notes ? `
               <div style="font-size: 12px; color: var(--ink-secondary); margin-top: 6px; padding: 7px 12px; background: var(--surface-alt); border-radius: var(--radius-sm); border-left: 3px solid var(--primary); font-style: italic; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%;">
                 💬 "${escapeHtml(r.notes)}"
               </div>
             ` : ''}
-          </div>
-
-          <!-- Quick Action Circles -->
-          <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
-            ${cleanPhone ? `
-              <a href="${telUrl}" class="action-circle-btn btn-call" title="Call ${escapeHtml(r.retailer)}">📞</a>
-              <a href="${waUrl}" target="_blank" rel="noopener" class="action-circle-btn btn-wa" title="WhatsApp Message">💬</a>
-            ` : ''}
-            <a href="${mapUrl}" target="_blank" rel="noopener" class="action-circle-btn btn-directions" title="Navigate on Google Maps">🧭</a>
-            <button type="button" class="action-circle-btn btn-star ${inTour ? 'in-tour' : ''} btn-toggle-tour" data-id="${r.id}" title="${inTour ? 'In Today\'s Tour' : 'Add to Tour'}">
-              ${inTour ? '★' : '☆'}
-            </button>
           </div>
         </div>
 
