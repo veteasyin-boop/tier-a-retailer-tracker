@@ -1,11 +1,11 @@
 -- ==============================================================================
 -- BIHAR TIER-A RETAILER OPERATIONS & SALES PIPELINE DATABASE SCHEMA
 -- PostgreSQL + Row Level Security (RLS) Policies for Supabase
+-- Fully Idempotent Migration Script (safe to run multiple times)
 -- ==============================================================================
 
 -- 1. EXTENSIONS
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-CREATE EXTENSION IF NOT EXISTS "postgis"; -- Optional: For geospatial boundary queries
 
 -- 2. ENUMS & DOMAINS
 DO $$ BEGIN
@@ -76,6 +76,25 @@ CREATE TABLE IF NOT EXISTS public.retailers (
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+-- SAFE MIGRATION FOR PRE-EXISTING RETAILERS TABLE:
+-- If public.retailers already existed before running this script, add missing columns:
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS last_visit_date DATE;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS last_visit_time TEXT;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS follow_up_date DATE;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS follow_up_notes TEXT;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS total_orders_value NUMERIC(12, 2) DEFAULT 0.00;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS last_order_date DATE;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS updated_by TEXT;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS verified_visit BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_date DATE;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_time TEXT;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_lat DOUBLE PRECISION;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_lng DOUBLE PRECISION;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_accuracy DOUBLE PRECISION;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_dist_km DOUBLE PRECISION;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_map_url TEXT;
+ALTER TABLE public.retailers ADD COLUMN IF NOT EXISTS check_in_rep TEXT;
+
 -- 5. CHECK-IN LOGS & PHYSICAL VISIT AUDIT TABLE
 CREATE TABLE IF NOT EXISTS public.check_in_logs (
     id TEXT PRIMARY KEY,
@@ -97,19 +116,26 @@ CREATE TABLE IF NOT EXISTS public.check_in_logs (
     notes TEXT,
     has_shop_photo BOOLEAN DEFAULT FALSE,
     shop_photo_url TEXT,
-    -- Commercial outcome captured during visit
     order_booked BOOLEAN DEFAULT FALSE,
     order_value NUMERIC(10, 2) DEFAULT 0.00,
     follow_up_date DATE,
     server_received_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
 
+-- SAFE MIGRATION FOR PRE-EXISTING CHECK_IN_LOGS TABLE:
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS has_shop_photo BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS shop_photo_url TEXT;
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS order_booked BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS order_value NUMERIC(10, 2) DEFAULT 0.00;
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS follow_up_date DATE;
+ALTER TABLE public.check_in_logs ADD COLUMN IF NOT EXISTS server_received_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now());
+
 -- 6. COMMERCIAL SALES ORDERS TABLE (PIPELINE ENGINE)
 CREATE TABLE IF NOT EXISTS public.orders (
     id TEXT PRIMARY KEY DEFAULT ('ord_' || uuid_generate_v4()::TEXT),
     retailer_id TEXT NOT NULL REFERENCES public.retailers(id) ON DELETE CASCADE,
     retailer_name TEXT NOT NULL,
-    assistant TEXT NOT NULL REFERENCES public.assistants(name) ON UPDATE CASCADE,
+    assistant TEXT NOT NULL,
     order_date DATE NOT NULL DEFAULT CURRENT_DATE,
     order_time TEXT,
     product_sku TEXT NOT NULL, -- e.g. 'Super Paddy 64', 'Pioneer Maize 3355'
@@ -161,6 +187,10 @@ CREATE TABLE IF NOT EXISTS public.demo_plots (
     created_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now()),
     updated_at TIMESTAMPTZ DEFAULT timezone('utc'::text, now())
 );
+
+-- SAFE MIGRATION FOR PRE-EXISTING DEMO_PLOTS TABLE:
+ALTER TABLE public.demo_plots ADD COLUMN IF NOT EXISTS has_photo BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.demo_plots ADD COLUMN IF NOT EXISTS photo_url TEXT;
 
 -- 9. FARMER MEETINGS TABLE
 CREATE TABLE IF NOT EXISTS public.farmer_meetings (
@@ -231,13 +261,14 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- POLICY: RETAILERS
--- Managers can view & edit all retailers. Reps can only view/edit retailers in their territory.
+DROP POLICY IF EXISTS "Managers have full access to retailers" ON public.retailers;
 CREATE POLICY "Managers have full access to retailers"
 ON public.retailers
 FOR ALL
 TO authenticated
 USING (public.is_manager());
 
+DROP POLICY IF EXISTS "Field reps can view and update assigned retailers" ON public.retailers;
 CREATE POLICY "Field reps can view and update assigned retailers"
 ON public.retailers
 FOR SELECT
@@ -248,6 +279,7 @@ USING (
     public.is_manager()
 );
 
+DROP POLICY IF EXISTS "Field reps can update assigned retailers" ON public.retailers;
 CREATE POLICY "Field reps can update assigned retailers"
 ON public.retailers
 FOR UPDATE
@@ -262,7 +294,7 @@ WITH CHECK (
 );
 
 -- POLICY: CHECK-IN LOGS
--- Reps can only insert check-ins for themselves. Managers can view all.
+DROP POLICY IF EXISTS "Reps can insert their own check-ins" ON public.check_in_logs;
 CREATE POLICY "Reps can insert their own check-ins"
 ON public.check_in_logs
 FOR INSERT
@@ -272,6 +304,7 @@ WITH CHECK (
     public.is_manager()
 );
 
+DROP POLICY IF EXISTS "View check-in logs" ON public.check_in_logs;
 CREATE POLICY "View check-in logs"
 ON public.check_in_logs
 FOR SELECT
@@ -282,6 +315,7 @@ USING (
 );
 
 -- POLICY: ORDERS
+DROP POLICY IF EXISTS "Field reps can manage their orders" ON public.orders;
 CREATE POLICY "Field reps can manage their orders"
 ON public.orders
 FOR ALL
