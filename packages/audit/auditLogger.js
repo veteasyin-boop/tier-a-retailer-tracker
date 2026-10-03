@@ -116,9 +116,31 @@ class AuditLogger {
     // Send to Supabase if connected
     if (supabaseService.isReady && supabaseService.client) {
       try {
-        await supabaseService.client.from('audit_logs').insert(record);
+        const isUUID = (val) => typeof val === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(val);
+        const sbPayload = {
+          tenant_id: isUUID(tenantId) ? tenantId : 'a0000000-0000-0000-0000-000000000001',
+          user_id: isUUID(user?.id) ? user.id : null,
+          user_name: user?.name || user?.fullName || 'Manager / System',
+          user_role: user?.role || 'SYSTEM',
+          action,
+          entity_type: entityType,
+          entity_id: String(entityId),
+          old_data: oldData,
+          new_data: newData,
+          diff: computedDiff,
+          created_at: record.created_at
+        };
+
+        const { error } = await supabaseService.client.from('audit_logs').insert(sbPayload);
+        if (error) {
+          if (error.code === '42501') {
+            console.debug('Cloud audit notice: RLS active on audit_logs. Local audit trail safely preserved in tat_audit_logs_v1.');
+          } else {
+            console.warn('Supabase audit logging note:', error.message);
+          }
+        }
       } catch (err) {
-        console.warn('Supabase audit logging note:', err.message);
+        console.debug('Supabase audit logging note:', err.message);
       }
     }
 

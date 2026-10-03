@@ -33,31 +33,44 @@ class SupabaseService {
   }
 
   async init() {
-    const { url, key } = this.getCredentials();
-    if (!url || !key) {
-      this.client = null;
-      this.isReady = false;
-      return false;
+    if (this.client && this.isReady) {
+      return true;
+    }
+    if (this._initPromise) {
+      return this._initPromise;
     }
 
-    try {
-      this.client = createClient(url, key, {
-        auth: {
-          persistSession: true,
-          autoRefreshToken: true,
-          detectSessionInUrl: true,
-          storageKey: 'tat_sb_auth_token'
-        },
-        realtime: { params: { eventsPerSecond: 10 } }
-      });
-      this.isReady = true;
-      return true;
-    } catch (e) {
-      console.error('Supabase client initialization error:', e);
-      this.client = null;
-      this.isReady = false;
-      return false;
-    }
+    this._initPromise = (async () => {
+      const { url, key } = this.getCredentials();
+      if (!url || !key) {
+        this.client = null;
+        this.isReady = false;
+        return false;
+      }
+
+      try {
+        this.client = createClient(url, key, {
+          auth: {
+            persistSession: true,
+            autoRefreshToken: true,
+            detectSessionInUrl: true,
+            storageKey: 'tat_sb_auth_token'
+          },
+          realtime: { params: { eventsPerSecond: 10 } }
+        });
+        this.isReady = true;
+        return true;
+      } catch (e) {
+        console.error('Supabase client initialization error:', e);
+        this.client = null;
+        this.isReady = false;
+        return false;
+      } finally {
+        this._initPromise = null;
+      }
+    })();
+
+    return this._initPromise;
   }
 
   // Real Supabase Authentication Methods

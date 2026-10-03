@@ -28,6 +28,7 @@ import { openLeaveModal } from './leaveModal.js';
 import { renderGeminiAiChatTab, initGeminiAiChat } from './geminiAiChat.js';
 import { openSpeedAuditModal } from './speedAuditModal.js';
 import { openSuperAdminModal } from './superAdminModal.js';
+import { openE2misModal } from './e2misModal.js';
 
 let currentAssistantScores = [];
 let currentAdminTab = 'leaderboard'; // 'leaderboard' | 'fieldops' | 'eod' | 'quiz' | 'forms' | 'inventory' | 'gps' | 'dealers' | 'tada' | 'muster' | 'leave' | 'ai'
@@ -181,6 +182,9 @@ export function renderAdminView(container, allRows) {
           </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminSuperAdmin" style="background: rgba(99, 102, 241, 0.12); border-color: rgba(99, 102, 241, 0.4); color: #6366f1; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Super Admin Control Plane & System Governance">
             <span>🛡️</span> Super Admin
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnAdminE2mis" style="background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.4); color: #0284c7; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Excel-to-Module Intelligence & Automation">
+            <span>⚡</span> E2MIS &amp; Workflows
           </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminQuickRefresh" style="background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.4); color: #0284c7; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Fetch latest check-ins, attendance, leaves, and visits from Supabase">
             <span>🔄</span> Sync &amp; Refresh
@@ -3270,6 +3274,7 @@ function bindAdminEvents(container) {
     }
   });
   document.getElementById('btnAdminSuperAdmin')?.addEventListener('click', () => openSuperAdminModal());
+  document.getElementById('btnAdminE2mis')?.addEventListener('click', () => openE2misModal(() => renderAdminView(container, storage.rows)));
   document.getElementById('btnAdminSupabaseSync')?.addEventListener('click', () => openSupabaseModal());
   document.getElementById('btnAdminSopGuide')?.addEventListener('click', () => openMgoSuccessModal());
   document.getElementById('btnAdminAddAssistant')?.addEventListener('click', () => openAddAssistantModal());
