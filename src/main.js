@@ -42,6 +42,31 @@ async function bootstrap() {
     updateTourNavBadge();
   });
 
+  window.addEventListener('tracker:checkInLogged', () => {
+    renderCurrentView();
+    updateTourNavBadge();
+  });
+
+  window.addEventListener('tracker:leaveChanged', () => {
+    renderCurrentView();
+  });
+
+  window.addEventListener('tracker:attendanceChanged', () => {
+    renderCurrentView();
+  });
+
+  window.addEventListener('tracker:tadaClaimChanged', () => {
+    renderCurrentView();
+  });
+
+  window.addEventListener('tracker:eodSubmitted', () => {
+    renderCurrentView();
+  });
+
+  window.addEventListener('tracker:orderBooked', () => {
+    renderCurrentView();
+  });
+
   window.addEventListener('tracker:roleChanged', () => {
     updateRoleUI();
     updateTourNavBadge();

@@ -1084,7 +1084,7 @@ export async function exportMusterRollToExcel(musterData) {
 
   // Company header rows
   const formXVIHeader = [
-    ['BIHAR AGTECH SOLUTIONS PVT. LTD.'],
+    ['VARYANTA GLOBAL INDUSTRIES — GROWTA AGRIBUSINESS OS'],
     ['Statutory Muster Roll — Form XVI / Form D (As per Shops & Establishments Act)'],
     [`Field Operations Division | ${monthName} ${year}`],
     [`Daily Base Wage: ₹${dailyWage}/day | Payable Days Formula: P + OD + WO + PL + H + (HD × 0.5)`],

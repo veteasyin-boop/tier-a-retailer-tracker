@@ -7,6 +7,7 @@ import { AGRONOMY_QUIZ_QUESTIONS } from './kpiService.js';
 import { BIHAR_BLOCKS, calculateCheckInJourneyKm, calculateDistanceKm, optimizeTourBeatRoute } from '../utils/geo.js';
 import { idbStorage } from './idbStorage.js';
 import { syncQueue } from './syncQueue.js';
+import { auditLogger, AUDIT_ACTIONS } from '../../packages/audit/auditLogger.js';
 
 const STORAGE_KEY = 'tier_a_retailers_bihar_v3';
 const ASSISTANTS_KEY = 'tier_a_assistants_config_v1';
@@ -87,67 +88,132 @@ class StorageService {
           this.handleRealtimeChange(table, payload);
         });
 
-        // Background pull if cloud has data
-        try {
-          const cloudRows = await supabaseService.fetchRetailers();
-          if (cloudRows && cloudRows.length > 0) {
-            this.rows = cloudRows;
-            this.saveToLocal();
-            this.triggerChange();
-          }
-
-          const cloudAssistants = await supabaseService.fetchAssistants();
-          if (cloudAssistants && cloudAssistants.length > 0) {
-            this.assistants = cloudAssistants;
-            this.saveAssistantsToLocal();
-            this.triggerChange();
-          }
-
-          // Initial pull for MGO SOP tables
-          const cloudMeetings = await supabaseService.fetchFarmerMeetings();
-          if (cloudMeetings && cloudMeetings.length > 0) {
-            this.saveFarmerMeetingsToLocal(cloudMeetings);
-            this.triggerChange();
-          }
-
-          const cloudDemos = await supabaseService.fetchDemoPlots();
-          if (cloudDemos && cloudDemos.length > 0) {
-            this.saveDemoPlotsToLocal(cloudDemos);
-            this.triggerChange();
-          }
-
-          const cloudIntel = await supabaseService.fetchCompetitorIntel();
-          if (cloudIntel && cloudIntel.length > 0) {
-            this.saveCompetitorIntelToLocal(cloudIntel);
-            this.triggerChange();
-          }
-
-          const cloudLeads = await supabaseService.fetchFarmerLeads();
-          if (cloudLeads && cloudLeads.length > 0) {
-            this.saveFarmerLeadsToLocal(cloudLeads);
-            this.triggerChange();
-          }
-
-          const cloudAqfs = await supabaseService.fetchAqfsAudits();
-          if (cloudAqfs && cloudAqfs.length > 0) {
-            this.saveAqfsAuditsToLocal(cloudAqfs);
-            this.triggerChange();
-          }
-
-          const cloudReviews = await supabaseService.fetchWeeklyReviews();
-          if (cloudReviews && cloudReviews.length > 0) {
-            this.saveWeeklyReviewsToLocal(cloudReviews);
-            this.triggerChange();
-          }
-        } catch(syncErr) {
-          console.warn('Initial Supabase fetch warning:', syncErr);
-        }
+        // Comprehensive initial pull for all tables
+        await this.pullAllFromCloud();
       } else {
         this.updateStorageIndicator('⚡ Local Offline Storage', 'Offline persistence enabled via localStorage. Click to configure Supabase.');
       }
     } catch(e) {
       console.warn('Supabase init warning:', e);
       this.updateStorageIndicator('⚡ Local Offline Storage', 'Offline persistence enabled via localStorage');
+    }
+  }
+
+  async pullAllFromCloud() {
+    if (!supabaseService.isReady) return false;
+    try {
+      console.log('🔄 Pulling all datasets from Supabase Cloud...');
+      const [
+        cloudRows,
+        cloudAssistants,
+        cloudLogs,
+        cloudMeetings,
+        cloudDemos,
+        cloudIntel,
+        cloudLeads,
+        cloudAqfs,
+        cloudReviews,
+        cloudLeaves,
+        cloudAttendance,
+        cloudTada,
+        cloudEod,
+        cloudQuizStates
+      ] = await Promise.allSettled([
+        supabaseService.fetchRetailers(),
+        supabaseService.fetchAssistants(),
+        supabaseService.fetchCheckInLogs(),
+        supabaseService.fetchFarmerMeetings(),
+        supabaseService.fetchDemoPlots(),
+        supabaseService.fetchCompetitorIntel(),
+        supabaseService.fetchFarmerLeads(),
+        supabaseService.fetchAqfsAudits(),
+        supabaseService.fetchWeeklyReviews(),
+        supabaseService.fetchLeaveApplications(),
+        supabaseService.fetchAttendanceRecords(),
+        supabaseService.fetchTadaClaims(),
+        supabaseService.fetchEodReports(),
+        supabaseService.fetchQuizStates()
+      ]);
+
+      if (cloudRows.status === 'fulfilled' && cloudRows.value && cloudRows.value.length > 0) {
+        this.rows = cloudRows.value;
+        this.saveToLocal();
+      }
+
+      if (cloudAssistants.status === 'fulfilled' && cloudAssistants.value && cloudAssistants.value.length > 0) {
+        this.assistants = cloudAssistants.value;
+        this.saveAssistantsToLocal();
+      }
+
+      if (cloudLogs.status === 'fulfilled' && cloudLogs.value && cloudLogs.value.length > 0) {
+        localStorage.setItem('tat_live_checkins_v1', JSON.stringify(cloudLogs.value));
+      }
+
+      if (cloudMeetings.status === 'fulfilled' && cloudMeetings.value && cloudMeetings.value.length > 0) {
+        this.saveFarmerMeetingsToLocal(cloudMeetings.value);
+      }
+
+      if (cloudDemos.status === 'fulfilled' && cloudDemos.value && cloudDemos.value.length > 0) {
+        this.saveDemoPlotsToLocal(cloudDemos.value);
+      }
+
+      if (cloudIntel.status === 'fulfilled' && cloudIntel.value && cloudIntel.value.length > 0) {
+        this.saveCompetitorIntelToLocal(cloudIntel.value);
+      }
+
+      if (cloudLeads.status === 'fulfilled' && cloudLeads.value && cloudLeads.value.length > 0) {
+        this.saveFarmerLeadsToLocal(cloudLeads.value);
+      }
+
+      if (cloudAqfs.status === 'fulfilled' && cloudAqfs.value && cloudAqfs.value.length > 0) {
+        this.saveAqfsAuditsToLocal(cloudAqfs.value);
+      }
+
+      if (cloudReviews.status === 'fulfilled' && cloudReviews.value && cloudReviews.value.length > 0) {
+        this.saveWeeklyReviewsToLocal(cloudReviews.value);
+      }
+
+      if (cloudLeaves.status === 'fulfilled' && cloudLeaves.value && cloudLeaves.value.length > 0) {
+        localStorage.setItem('tat_leave_applications_v1', JSON.stringify(cloudLeaves.value));
+        window.dispatchEvent(new CustomEvent('tracker:leaveChanged'));
+      }
+
+      if (cloudAttendance.status === 'fulfilled' && cloudAttendance.value && cloudAttendance.value.length > 0) {
+        this.saveAttendanceRecordsToLocal(cloudAttendance.value);
+        window.dispatchEvent(new CustomEvent('tracker:attendanceChanged'));
+      }
+
+      if (cloudTada.status === 'fulfilled' && cloudTada.value && cloudTada.value.length > 0) {
+        this.saveTadaClaimsToLocal(cloudTada.value);
+        window.dispatchEvent(new CustomEvent('tracker:tadaClaimChanged', { detail: { claims: cloudTada.value } }));
+      }
+
+      if (cloudEod.status === 'fulfilled' && cloudEod.value && cloudEod.value.length > 0) {
+        cloudEod.value.forEach(r => {
+          if (r.assistant && r.date) {
+            const key = `tat_eod_${String(r.assistant).toLowerCase().trim()}_${r.date}`;
+            localStorage.setItem(key, JSON.stringify(r));
+          }
+        });
+        window.dispatchEvent(new CustomEvent('tracker:eodSubmitted'));
+      }
+
+      if (cloudQuizStates.status === 'fulfilled' && cloudQuizStates.value && cloudQuizStates.value.length > 0) {
+        cloudQuizStates.value.forEach(qs => {
+          const asst = qs.assistant || qs.rep_name || qs.assistant_name;
+          if (asst) {
+            const key = `tat_quiz_${String(asst).toLowerCase().trim()}`;
+            localStorage.setItem(key, JSON.stringify(qs));
+          }
+        });
+      }
+
+      console.log('✅ Supabase cloud pull complete.');
+      this.triggerChange();
+      return true;
+    } catch(syncErr) {
+      console.warn('Supabase cloud pull warning:', syncErr);
+      return false;
     }
   }
 
@@ -222,6 +288,7 @@ class StorageService {
           notes: newRec.notes
         };
         this.saveCheckInLog(mappedLog, false);
+        this.triggerChange();
       }
     } else if (table === 'assistants') {
       if (eventType === 'INSERT' || eventType === 'UPDATE') {
@@ -289,6 +356,132 @@ class StorageService {
         const list = this.getWeeklyReviews().filter(r => r.id !== oldRec.id);
         this.saveWeeklyReviewsToLocal(list);
         this.triggerChange();
+      }
+    } else if (table === 'leave_applications') {
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const mappedLeave = {
+          id: newRec.id,
+          assistant: newRec.assistant,
+          empCode: newRec.emp_code || '',
+          hq: newRec.hq || '',
+          district: newRec.district || '',
+          leaveType: newRec.leave_type,
+          leaveLabel: newRec.leave_label || newRec.leave_type,
+          fromDate: newRec.from_date,
+          toDate: newRec.to_date,
+          days: parseFloat(newRec.days || 1),
+          halfDay: Boolean(newRec.half_day),
+          session: newRec.session || 'full',
+          reason: newRec.reason,
+          status: newRec.status || 'Pending',
+          appliedAt: newRec.applied_at,
+          approvedBy: newRec.approved_by,
+          approvedAt: newRec.approved_at,
+          managerRemarks: newRec.manager_remarks
+        };
+        const raw = localStorage.getItem('tat_leave_applications_v1');
+        let list = raw ? JSON.parse(raw) : [];
+        if (!Array.isArray(list)) list = [];
+        const idx = list.findIndex(l => l.id === mappedLeave.id);
+        if (idx >= 0) {
+          list[idx] = { ...list[idx], ...mappedLeave };
+        } else {
+          list.unshift(mappedLeave);
+        }
+        localStorage.setItem('tat_leave_applications_v1', JSON.stringify(list));
+        window.dispatchEvent(new CustomEvent('tracker:leaveChanged'));
+        this.triggerChange();
+      } else if (eventType === 'DELETE' && oldRec?.id) {
+        const raw = localStorage.getItem('tat_leave_applications_v1');
+        let list = raw ? JSON.parse(raw) : [];
+        if (Array.isArray(list)) {
+          list = list.filter(l => l.id !== oldRec.id);
+          localStorage.setItem('tat_leave_applications_v1', JSON.stringify(list));
+          window.dispatchEvent(new CustomEvent('tracker:leaveChanged'));
+          this.triggerChange();
+        }
+      }
+    } else if (table === 'attendance_records') {
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const mappedAtt = {
+          id: newRec.id,
+          assistant: newRec.assistant,
+          empCode: newRec.emp_code || '',
+          hq: newRec.hq || '',
+          district: newRec.district || '',
+          date: newRec.date,
+          punchIn: newRec.punch_in,
+          punchInTime: newRec.punch_in_time,
+          punchInGps: (newRec.punch_in_lat && newRec.punch_in_lng) ? {
+            lat: newRec.punch_in_lat,
+            lng: newRec.punch_in_lng,
+            locationName: newRec.punch_in_location_name || ''
+          } : null,
+          punchOut: newRec.punch_out,
+          punchOutTime: newRec.punch_out_time,
+          punchOutGps: (newRec.punch_out_lat && newRec.punch_out_lng) ? {
+            lat: newRec.punch_out_lat,
+            lng: newRec.punch_out_lng,
+            locationName: newRec.punch_out_location_name || ''
+          } : null,
+          workingMinutes: newRec.working_minutes || 0,
+          workingHoursFormatted: newRec.working_hours_formatted || '',
+          workMode: newRec.work_mode || 'Field Operations',
+          status: newRec.status,
+          statusLabel: newRec.status_label,
+          isLate: Boolean(newRec.is_late),
+          notes: newRec.notes || '',
+          regularizationRequested: Boolean(newRec.regularization_requested),
+          regularizationReason: newRec.regularization_reason,
+          requestedStatus: newRec.requested_status,
+          regularizationStatus: newRec.regularization_status
+        };
+        this.saveAttendanceRecord(mappedAtt, false);
+        window.dispatchEvent(new CustomEvent('tracker:attendanceChanged'));
+        this.triggerChange();
+      }
+    } else if (table === 'tada_claims') {
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const mappedClaim = {
+          id: newRec.id,
+          assistant: newRec.assistant,
+          hq: newRec.hq,
+          district: newRec.district,
+          date: newRec.date,
+          verifiedStops: newRec.verified_stops || 0,
+          gpsVerifiedKm: newRec.gps_verified_km || 0,
+          claimedKm: newRec.claimed_km || 0,
+          fuelRate: newRec.fuel_rate || 3.5,
+          fuelAmount: newRec.fuel_amount || 0,
+          daAmount: newRec.da_amount || 0,
+          outstationAmount: newRec.outstation_amount || 0,
+          incidentalAmount: newRec.incidental_amount || 0,
+          incidentalNotes: newRec.incidental_notes,
+          totalClaimAmount: newRec.total_claim_amount || 0,
+          approvedAmount: newRec.approved_amount || 0,
+          status: newRec.status || 'Submitted',
+          auditFlags: newRec.audit_flags || [],
+          managerNotes: newRec.manager_notes,
+          approvedBy: newRec.approved_by,
+          approvedAt: newRec.approved_at
+        };
+        this.saveTadaClaim(mappedClaim, false);
+      }
+    } else if (table === 'eod_reports') {
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const key = `tat_eod_${String(newRec.assistant).toLowerCase().trim()}_${newRec.date}`;
+        localStorage.setItem(key, JSON.stringify(newRec));
+        window.dispatchEvent(new CustomEvent('tracker:eodSubmitted', { detail: { assistantName: newRec.assistant, dateStr: newRec.date } }));
+        this.triggerChange();
+      }
+    } else if (table === 'quiz_states') {
+      if (eventType === 'INSERT' || eventType === 'UPDATE') {
+        const asstName = newRec.assistant || newRec.rep_name || newRec.assistant_name;
+        if (asstName) {
+          const key = `tat_quiz_${String(asstName).toLowerCase().trim()}`;
+          localStorage.setItem(key, JSON.stringify(newRec));
+          this.triggerChange();
+        }
       }
     }
   }
@@ -447,6 +640,15 @@ class StorageService {
 
     this.saveToLocal();
     this.triggerChange();
+
+    auditLogger.log({
+      action: AUDIT_ACTIONS.RETAILER_REASSIGN,
+      entityType: 'territory_block',
+      entityId: blockName,
+      user: { fullName: 'Admin / Manager', role: 'SUPER_ADMIN' },
+      diff: { block: blockName, targetAssistant: targetAssistantName, count: reassignedCount }
+    });
+
     return reassignedCount;
   }
 
@@ -480,6 +682,15 @@ class StorageService {
 
     this.saveToLocal();
     this.triggerChange();
+
+    auditLogger.log({
+      action: AUDIT_ACTIONS.RETAILER_REASSIGN,
+      entityType: 'territory_handover',
+      entityId: `${fromAssistant}->${toAssistant}`,
+      user: { fullName: 'Admin / Manager', role: 'SUPER_ADMIN' },
+      diff: { fromAssistant, toAssistant, count }
+    });
+
     return count;
   }
 
@@ -514,6 +725,15 @@ class StorageService {
 
     this.saveToLocal();
     this.triggerChange();
+
+    auditLogger.log({
+      action: AUDIT_ACTIONS.RETAILER_REASSIGN,
+      entityType: 'retailer_batch',
+      entityId: `batch_${retailerIds.length}`,
+      user: { fullName: 'Admin / Manager', role: 'SUPER_ADMIN' },
+      diff: { targetAssistant: targetAssistantName, retailerIdsCount: retailerIds.length, count }
+    });
+
     return count;
   }
 
@@ -744,6 +964,15 @@ class StorageService {
       }
 
       window.dispatchEvent(new CustomEvent('tracker:checkInLogged', { detail: { entry: cleanEntry } }));
+      this.triggerChange();
+
+      auditLogger.log({
+        action: AUDIT_ACTIONS.CHECK_IN,
+        entityType: 'visit',
+        entityId: cleanEntry.id,
+        user: { fullName: cleanEntry.rep, role: 'FIELD_OFFICER' },
+        newData: cleanEntry
+      }).catch(e => console.warn('Audit error:', e));
 
       // Optimistically enqueue mutation to sync queue with exponential backoff
       if (syncToCloud) {
@@ -798,6 +1027,14 @@ class StorageService {
 
       window.dispatchEvent(new CustomEvent('tracker:orderBooked', { detail: { order: cleanOrder } }));
       this.triggerChange();
+
+      auditLogger.log({
+        action: AUDIT_ACTIONS.ORDER_BOOK,
+        entityType: 'order',
+        entityId: cleanOrder.id,
+        user: { fullName: cleanOrder.booked_by_name || 'Field Assistant', role: 'FIELD_OFFICER' },
+        newData: cleanOrder
+      }).catch(e => console.warn('Audit error:', e));
 
       if (syncToCloud) {
         syncQueue.enqueue('orders', 'upsert', cleanOrder).catch(e => console.warn('Sync queue order warning:', e));
@@ -3816,6 +4053,8 @@ class StorageService {
       list.unshift({ ...record, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
     }
     this.saveAttendanceRecordsToLocal(list);
+    window.dispatchEvent(new CustomEvent('tracker:attendanceChanged', { detail: { record } }));
+    this.triggerChange();
 
     // Optimistically enqueue mutation to sync queue with exponential backoff
     if (syncToCloud) {
@@ -4444,8 +4683,18 @@ class StorageService {
       }
       localStorage.setItem('tat_leave_applications_v1', JSON.stringify(list));
       window.dispatchEvent(new CustomEvent('tracker:leaveChanged'));
+      this.triggerChange();
+
+      auditLogger.log({
+        action: application.status === 'Approved' ? AUDIT_ACTIONS.LEAVE_APPROVE : (application.status === 'Rejected' ? AUDIT_ACTIONS.LEAVE_REJECT : AUDIT_ACTIONS.LEAVE_APPLY),
+        entityType: 'leave',
+        entityId: application.id,
+        user: { fullName: application.assistant, role: 'FIELD_OFFICER' },
+        newData: application
+      }).catch(e => console.warn('Audit error:', e));
+
       if (supabaseService.isReady && supabaseService.client) {
-        supabaseService.client.from('leave_applications').upsert(application).catch(e => console.warn(e));
+        supabaseService.upsertLeaveApplication(application).catch(e => console.warn('Supabase leave save error:', e));
       }
       return application;
     } catch (e) { console.error('Error saving leave application:', e); }

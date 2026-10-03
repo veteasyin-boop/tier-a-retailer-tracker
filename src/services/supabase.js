@@ -153,6 +153,15 @@ class SupabaseService {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'eod_reports' }, (payload) => {
         if (typeof onTableChange === 'function') onTableChange('eod_reports', payload);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_applications' }, (payload) => {
+        if (typeof onTableChange === 'function') onTableChange('leave_applications', payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'attendance_records' }, (payload) => {
+        if (typeof onTableChange === 'function') onTableChange('attendance_records', payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tada_claims' }, (payload) => {
+        if (typeof onTableChange === 'function') onTableChange('tada_claims', payload);
+      })
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
           console.log('⚡ Supabase real-time channel connected');
@@ -507,7 +516,156 @@ class SupabaseService {
     }
     return data || [];
   }
+
+  // --- LEAVE APPLICATIONS (अवकाश प्रबंधन) ---
+  async fetchLeaveApplications() {
+    if (!this.client) return null;
+    const { data, error } = await this.client
+      .from('leave_applications')
+      .select('*')
+      .order('applied_at', { ascending: false });
+    if (error) {
+      console.warn('Supabase fetchLeaveApplications note:', error.message);
+      return null;
+    }
+    return (data || []).map(r => ({
+      id: r.id,
+      assistant: r.assistant,
+      empCode: r.emp_code || '',
+      hq: r.hq || '',
+      district: r.district || '',
+      leaveType: r.leave_type,
+      leaveLabel: r.leave_label || r.leave_type,
+      fromDate: r.from_date,
+      toDate: r.to_date,
+      days: parseFloat(r.days || 1),
+      halfDay: Boolean(r.half_day),
+      session: r.session || 'full',
+      reason: r.reason,
+      status: r.status || 'Pending',
+      appliedAt: r.applied_at,
+      approvedBy: r.approved_by,
+      approvedAt: r.approved_at,
+      managerRemarks: r.manager_remarks
+    }));
+  }
+
+  async upsertLeaveApplication(app) {
+    if (!this.client) return null;
+    const record = {
+      id: app.id,
+      assistant: app.assistant,
+      emp_code: app.empCode || null,
+      hq: app.hq || null,
+      district: app.district || null,
+      leave_type: app.leaveType,
+      leave_label: app.leaveLabel || app.leaveType,
+      from_date: app.fromDate,
+      to_date: app.toDate,
+      days: app.days,
+      half_day: Boolean(app.halfDay),
+      session: app.session || 'full',
+      reason: app.reason,
+      status: app.status || 'Pending',
+      applied_at: app.appliedAt || new Date().toISOString(),
+      approved_by: app.approvedBy || null,
+      approved_at: app.approvedAt || null,
+      manager_remarks: app.managerRemarks || null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await this.client
+      .from('leave_applications')
+      .upsert(record);
+    if (error) {
+      console.warn('Supabase upsertLeaveApplication error:', error.message);
+      throw error;
+    }
+    return data;
+  }
+
+  // --- ATTENDANCE RECORDS ---
+  async fetchAttendanceRecords() {
+    if (!this.client) return null;
+    const { data, error } = await this.client
+      .from('attendance_records')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) {
+      console.warn('Supabase fetchAttendanceRecords note:', error.message);
+      return null;
+    }
+    return (data || []).map(r => ({
+      id: r.id,
+      assistant: r.assistant,
+      empCode: r.emp_code || '',
+      hq: r.hq || '',
+      district: r.district || '',
+      date: r.date,
+      punchIn: r.punch_in,
+      punchInTime: r.punch_in_time,
+      punchInGps: (r.punch_in_lat && r.punch_in_lng) ? {
+        lat: r.punch_in_lat,
+        lng: r.punch_in_lng,
+        locationName: r.punch_in_location_name || ''
+      } : null,
+      punchOut: r.punch_out,
+      punchOutTime: r.punch_out_time,
+      punchOutGps: (r.punch_out_lat && r.punch_out_lng) ? {
+        lat: r.punch_out_lat,
+        lng: r.punch_out_lng,
+        locationName: r.punch_out_location_name || ''
+      } : null,
+      workingMinutes: r.working_minutes || 0,
+      workingHoursFormatted: r.working_hours_formatted || '',
+      workMode: r.work_mode || 'Field Operations',
+      status: r.status,
+      statusLabel: r.status_label,
+      isLate: Boolean(r.is_late),
+      notes: r.notes || '',
+      regularizationRequested: Boolean(r.regularization_requested),
+      regularizationReason: r.regularization_reason,
+      requestedStatus: r.requested_status,
+      regularizationStatus: r.regularization_status
+    }));
+  }
+
+  // --- TADA CLAIMS ---
+  async fetchTadaClaims() {
+    if (!this.client) return null;
+    const { data, error } = await this.client
+      .from('tada_claims')
+      .select('*')
+      .order('date', { ascending: false });
+    if (error) {
+      console.warn('Supabase fetchTadaClaims note:', error.message);
+      return null;
+    }
+    return (data || []).map(r => ({
+      id: r.id,
+      assistant: r.assistant,
+      hq: r.hq,
+      district: r.district,
+      date: r.date,
+      verifiedStops: r.verified_stops || 0,
+      gpsVerifiedKm: r.gps_verified_km || 0,
+      claimedKm: r.claimed_km || 0,
+      fuelRate: r.fuel_rate || 3.5,
+      fuelAmount: r.fuel_amount || 0,
+      daAmount: r.da_amount || 0,
+      outstationAmount: r.outstation_amount || 0,
+      incidentalAmount: r.incidental_amount || 0,
+      incidentalNotes: r.incidental_notes,
+      totalClaimAmount: r.total_claim_amount || 0,
+      approvedAmount: r.approved_amount || 0,
+      status: r.status || 'Submitted',
+      auditFlags: r.audit_flags || [],
+      managerNotes: r.manager_notes,
+      approvedBy: r.approved_by,
+      approvedAt: r.approved_at
+    }));
+  }
 }
 
 export const supabaseService = new SupabaseService();
+
 

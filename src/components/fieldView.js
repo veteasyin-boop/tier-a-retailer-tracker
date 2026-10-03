@@ -23,6 +23,9 @@ import { openRepStockLedgerModal } from './repStockLedgerModal.js';
 import { openSmartTourBeatModal } from './smartTourBeatModal.js';
 import { openAttendanceModal } from './attendanceModal.js';
 import { openLeaveModal } from './leaveModal.js';
+import { evaluateVisitIntegrity, createWatermarkedEvidence, VISIT_STATES, INTEGRITY_STATUS } from '../services/visitIntegrityService.js';
+import { skuMaster } from '../../packages/catalog/skuMaster.js';
+import { contextEngine } from '../../packages/neuroncore/contextEngine.js';
 
 let currentDetectedBlock = null;
 let currentSearch = '';
@@ -1875,6 +1878,31 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
     const todayStr = getTodayDateStr();
     const mapUrl = (lat && lng) ? `https://www.google.com/maps?q=${lat},${lng}` : null;
 
+    // Evaluate Visit Integrity & Categorical Status (PRD Sections 24, 25)
+    const integrity = evaluateVisitIntegrity({
+      retailer,
+      coords: { lat, lng, accuracy }
+    });
+
+    // Generate Tamper-Proof Canvas Watermarked Photo if attached (PRD Section 26)
+    let processedPhotoUrl = currentShopPhotoDataUrl || null;
+    if (currentShopPhotoDataUrl) {
+      try {
+        processedPhotoUrl = await createWatermarkedEvidence(currentShopPhotoDataUrl, {
+          retailerName: retailer.retailer,
+          block: retailer.block,
+          district: retailer.district,
+          repName: currentRep,
+          lat,
+          lng,
+          accuracy,
+          visitState: integrity.visitState
+        });
+      } catch (watermarkErr) {
+        console.warn('Evidence watermark warning:', watermarkErr);
+      }
+    }
+
     const updated = {
       ...retailer,
       verifiedVisit: true,
@@ -1882,9 +1910,12 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
       checkInTime: timeStr,
       checkInTimestamp: Date.now(),
       checkInCoords: { lat, lng, accuracy },
-      checkInDistKm: dist,
+      checkInDistKm: integrity.distanceKm !== null ? Number(integrity.distanceKm.toFixed(2)) : dist,
       checkInRep: currentRep,
       checkInMapUrl: mapUrl,
+      visitState: integrity.visitState,
+      integrity_status: integrity.integrity_status,
+      integrity_score: integrity.integrity_score,
       last_visit_date: todayStr,
       last_visit_time: timeStr
     };
@@ -1906,14 +1937,18 @@ async function executeLiveCheckIn(retailerId, btn, currentRep, repInfo, mainCont
       lat,
       lng,
       accuracy,
-      distKm: dist,
+      distKm: integrity.distanceKm !== null ? Number(integrity.distanceKm.toFixed(2)) : dist,
       mapUrl,
       status: retailer.status || 'Visited',
+      visitState: integrity.visitState,
+      integrity_status: integrity.integrity_status,
+      integrity_score: integrity.integrity_score,
+      review_reason: integrity.review_reason,
       notes: retailer.notes || '',
-      shop_photo_data_url: currentShopPhotoDataUrl || null
+      shop_photo_data_url: processedPhotoUrl
     });
 
-    showToast(`✅ Live GPS Verified for "${retailer.retailer}" (${lat.toFixed(4)}°, ${lng.toFixed(4)}° · ±${accuracy}m)!`, '📍');
+    showToast(`✅ ${integrity.visitState} Check-In (${integrity.integrity_score}/100 pts) for "${retailer.retailer}"!`, '📍');
     if (mainContainer) {
       renderNearbyRetailersView(mainContainer, storage.rows, repInfo);
     }
@@ -2040,27 +2075,34 @@ function initCounterBottomSheet(mainContainer, repInfo, currentRep) {
     saveBtn.disabled = true;
 
     try {
-      // 1. Process Sales Order Booking (if entered)
-      const orderSku = document.getElementById('sheetOrderSku')?.value || '';
+      // 1. Process Sales Order Booking with SKU Master & GST Engine (PRD Sections 31, 32)
+      const skuId = document.getElementById('sheetOrderSku')?.value || '';
       const orderQty = Number(document.getElementById('sheetOrderQty')?.value) || 0;
       const orderRate = Number(document.getElementById('sheetOrderRate')?.value) || 0;
       const orderPayment = document.getElementById('sheetOrderPayment')?.value || 'Cash_on_Delivery';
-      const totalOrderVal = orderQty * orderRate;
 
-      if (orderSku && orderQty > 0) {
+      if (skuId && orderQty > 0) {
+        const skuInfo = skuMaster.getSkuById(skuId);
+        const pricing = skuMaster.calculateOrderTotal({ skuId, qty: orderQty, overrideRate: orderRate });
+
         storage.saveOrder({
           retailer_id: r.id,
           retailer_name: r.retailer,
           assistant: currentRep,
           order_date: todayStr,
           order_time: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
-          product_sku: orderSku,
+          product_sku: skuInfo?.product_name || skuId,
+          sku_id: skuId,
+          pack_size: skuInfo?.pack_size || '',
           quantity_bags: orderQty,
           unit_price: orderRate,
-          total_order_value: totalOrderVal,
-          payment_terms: orderPayment
+          subtotal: pricing.gross,
+          gst_amount: pricing.gstAmount,
+          total_order_value: pricing.grandTotal,
+          payment_terms: orderPayment,
+          order_status: 'Submitted'
         });
-        showToast(`Booked order: ${orderQty} bags of ${orderSku} (₹${totalOrderVal})`, '📦');
+        showToast(`Booked order: ${orderQty} ${skuInfo?.unit || 'units'} of ${skuInfo?.product_name || skuId} (₹${pricing.grandTotal.toLocaleString('en-IN')})`, '📦');
       }
 
       // 2. Process Channel Stock & Liquidation Audit (if entered)
@@ -2140,6 +2182,29 @@ export function openCounterBottomSheet(retailerId, currentRep, repInfo, mainCont
   if (nameEl) nameEl.textContent = r.retailer;
   if (subEl) subEl.textContent = `${r.block || 'N/A'}, ${r.district || 'Bihar'} · Rep: ${r.assistant || currentRep}`;
 
+  // Populate AI Field Assistant Visit Agenda (PRD Module 34)
+  const ctx = contextEngine.getRetailerContext(retailerId);
+  if (ctx) {
+    const agendaEl = document.getElementById('sheetAiAgendaContent');
+    const seasonBadge = document.getElementById('sheetAiSeasonBadge');
+    if (seasonBadge) seasonBadge.textContent = ctx.season.name;
+    if (agendaEl) {
+      agendaEl.innerHTML = `
+        <div style="color: var(--muted); margin-bottom: 4px; font-size: 11px;">
+          Last Visit: <strong>${ctx.history.lastVisitDate}</strong> (${ctx.history.totalVisits} visits logged)
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 3px;">
+          ${ctx.suggestedAgenda.map(item => `
+            <div style="display: flex; align-items: flex-start; gap: 6px;">
+              <span style="color: #0284c7; font-weight: 700;">•</span>
+              <span>${item}</span>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+  }
+
   // Reset Photo Upload & Check IndexedDB for existing photo
   const previewWrapper = document.getElementById('sheetPhotoPreviewWrapper');
   const previewImg = document.getElementById('sheetShopPhotoPreview');
@@ -2155,15 +2220,58 @@ export function openCounterBottomSheet(retailerId, currentRep, repInfo, mainCont
     }
   }).catch(() => {});
 
-  // Reset & Populate Order Inputs
+  // Reset & Populate Order Inputs Dynamically from SKU Master
   const skuSelect = document.getElementById('sheetOrderSku');
   const qtyInput = document.getElementById('sheetOrderQty');
   const rateInput = document.getElementById('sheetOrderRate');
   const totalDisplay = document.getElementById('sheetOrderTotalValue');
-  if (skuSelect) skuSelect.value = '';
-  if (qtyInput) qtyInput.value = '';
-  if (rateInput) rateInput.value = '';
-  if (totalDisplay) totalDisplay.textContent = '₹0';
+
+  if (skuSelect) {
+    const allSkus = skuMaster.getAllSkus();
+    skuSelect.innerHTML = `
+      <option value="">-- No Order Placed --</option>
+      ${allSkus.map(s => `
+        <option value="${s.id}" data-price="${s.dealer_price}" data-gst="${s.gst_rate}">
+          ${s.product_name} (${s.pack_size}) — ₹${s.dealer_price}${s.gst_rate > 0 ? ` + ${s.gst_rate}% GST` : ''}
+        </option>
+      `).join('')}
+    `;
+    skuSelect.value = '';
+
+    const recalcOrderTotal = () => {
+      const selected = skuSelect.selectedOptions[0];
+      const qty = Number(qtyInput?.value) || 0;
+      const rate = Number(rateInput?.value) || 0;
+      const gstRate = Number(selected?.getAttribute('data-gst')) || 0;
+      const gross = qty * rate;
+      const gst = Math.round(gross * (gstRate / 100));
+      const total = gross + gst;
+      if (totalDisplay) {
+        totalDisplay.textContent = total > 0 ? `₹${total.toLocaleString('en-IN')}${gst > 0 ? ` (incl. ₹${gst} GST)` : ''}` : '₹0';
+      }
+    };
+
+    skuSelect.onchange = () => {
+      const selected = skuSelect.selectedOptions[0];
+      if (selected && selected.value) {
+        const price = selected.getAttribute('data-price');
+        if (rateInput) rateInput.value = price || '';
+      } else {
+        if (rateInput) rateInput.value = '';
+      }
+      recalcOrderTotal();
+    };
+
+    if (qtyInput) {
+      qtyInput.value = '';
+      qtyInput.oninput = recalcOrderTotal;
+    }
+    if (rateInput) {
+      rateInput.value = '';
+      rateInput.oninput = recalcOrderTotal;
+    }
+    if (totalDisplay) totalDisplay.textContent = '₹0';
+  }
 
   // Reset Stock Inputs
   const stockCo = document.getElementById('sheetStockCompany');

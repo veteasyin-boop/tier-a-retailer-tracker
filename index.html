@@ -107,6 +107,19 @@
         <!-- Live GPS Visit Status Banner -->
         <div id="sheetGpsBanner" style="padding: 10px 14px; border-radius: var(--radius-sm); font-size: 12.5px;"></div>
 
+        <!-- AI Field Assistant Contextual Briefing (PRD Module 34) -->
+        <div id="sheetAiBriefingBanner" style="background: linear-gradient(135deg, rgba(14, 165, 233, 0.08), rgba(99, 102, 241, 0.08)); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: var(--radius-sm); padding: 10px 12px; margin-top: 8px; margin-bottom: 6px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <strong style="font-size: 12px; color: #0284c7; display: flex; align-items: center; gap: 4px;">
+              <span>✨</span> NeuronCore Visit Agenda
+            </strong>
+            <span id="sheetAiSeasonBadge" class="badge" style="font-size: 10px; background: rgba(99, 102, 241, 0.15); color: #6366f1;">Rabi</span>
+          </div>
+          <div id="sheetAiAgendaContent" style="font-size: 11.5px; color: var(--ink); line-height: 1.45;">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+
         <!-- Outreach Status Segmented Chips -->
         <div>
           <label class="form-label" style="margin-bottom: 6px; display: block;">Outreach Status</label>

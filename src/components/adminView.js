@@ -27,6 +27,7 @@ import { openAttendanceModal } from './attendanceModal.js';
 import { openLeaveModal } from './leaveModal.js';
 import { renderGeminiAiChatTab, initGeminiAiChat } from './geminiAiChat.js';
 import { openSpeedAuditModal } from './speedAuditModal.js';
+import { openSuperAdminModal } from './superAdminModal.js';
 
 let currentAssistantScores = [];
 let currentAdminTab = 'leaderboard'; // 'leaderboard' | 'fieldops' | 'eod' | 'quiz' | 'forms' | 'inventory' | 'gps' | 'dealers' | 'tada' | 'muster' | 'leave' | 'ai'
@@ -177,6 +178,12 @@ export function renderAdminView(container, allRows) {
           </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminSpeedAudit" style="color: #dc2626; border-color: rgba(220, 38, 38, 0.4); font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Fleet Speed Governance & Over-Speeding Warning Dispatcher">
             <span>🚨</span> Fleet Speed &amp; Warnings
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnAdminSuperAdmin" style="background: rgba(99, 102, 241, 0.12); border-color: rgba(99, 102, 241, 0.4); color: #6366f1; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Super Admin Control Plane & System Governance">
+            <span>🛡️</span> Super Admin
+          </button>
+          <button class="btn btn-secondary btn-sm" id="btnAdminQuickRefresh" style="background: rgba(14, 165, 233, 0.1); border-color: rgba(14, 165, 233, 0.4); color: #0284c7; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;" title="Fetch latest check-ins, attendance, leaves, and visits from Supabase">
+            <span>🔄</span> Sync &amp; Refresh
           </button>
           <button class="btn btn-secondary btn-sm" id="btnAdminSupabaseSync" style="background: rgba(34, 197, 94, 0.1); border-color: rgba(34, 197, 94, 0.4); color: var(--success); font-weight: 600;">☁️ Supabase Cloud</button>
           <button class="btn btn-secondary btn-sm" id="btnAdminSopGuide" style="color: var(--primary); font-weight: 600;">🌱 SOP Guide</button>
@@ -3246,6 +3253,23 @@ function bindAdminEvents(container) {
       openSpeedAuditModal(() => renderAdminView(container, storage.rows));
     });
   });
+  document.getElementById('btnAdminQuickRefresh')?.addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    const oldText = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span>⏳</span> Syncing...';
+    try {
+      await storage.pullAllFromCloud();
+      showToast('Dashboard refreshed with latest Supabase live data!', '✅');
+      renderAdminView(container, storage.rows);
+    } catch (err) {
+      showToast('Sync error: ' + (err.message || err), '❌');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = oldText;
+    }
+  });
+  document.getElementById('btnAdminSuperAdmin')?.addEventListener('click', () => openSuperAdminModal());
   document.getElementById('btnAdminSupabaseSync')?.addEventListener('click', () => openSupabaseModal());
   document.getElementById('btnAdminSopGuide')?.addEventListener('click', () => openMgoSuccessModal());
   document.getElementById('btnAdminAddAssistant')?.addEventListener('click', () => openAddAssistantModal());

@@ -26,6 +26,11 @@ export function openLeaveModal(options = {}) {
   modal.id = 'leaveModal';
   modal.style.cssText = 'display:flex; align-items:center; justify-content:center; z-index:9999;';
 
+  let historySearch = '';
+  let historyStatus = 'All';
+  let historyPage = 1;
+  const HISTORY_PAGE_SIZE = 5;
+
   function render() {
     const balance = storage.getLeaveBalance(repInfo.name, currentYear);
     const applications = storage.getLeaveApplications({ assistant: repInfo.name });
@@ -230,36 +235,91 @@ export function openLeaveModal(options = {}) {
     const statusFg = { Pending: '#d97706', Approved: '#16a34a', Rejected: '#dc2626', Cancelled: '#64748b' };
     const typeColor = { PL: '#16a34a', CL: '#0284c7', SL: '#db2777', LWP: '#dc2626' };
 
-    if (applications.length === 0) {
-      return `<div style="text-align:center; padding:40px 20px; color:var(--muted);">
-        <div style="font-size:36px; margin-bottom:8px;">📭</div>
-        <div style="font-weight:700; font-size:14px;">No leave applications yet</div>
-        <div style="font-size:12px; margin-top:4px;">Your submitted leave requests will appear here</div>
-      </div>`;
-    }
+    const q = historySearch.trim().toLowerCase();
+    const filtered = applications.filter(app => {
+      const matchStatus = historyStatus === 'All' || app.status === historyStatus;
+      const matchQuery = !q ||
+        (app.leaveLabel && app.leaveLabel.toLowerCase().includes(q)) ||
+        (app.reason && app.reason.toLowerCase().includes(q)) ||
+        (app.fromDate && app.fromDate.includes(q)) ||
+        (app.toDate && app.toDate.includes(q));
+      return matchStatus && matchQuery;
+    });
+
+    const totalPages = Math.max(1, Math.ceil(filtered.length / HISTORY_PAGE_SIZE));
+    const safePage = Math.min(Math.max(1, historyPage), totalPages);
+    const paginated = filtered.slice((safePage - 1) * HISTORY_PAGE_SIZE, safePage * HISTORY_PAGE_SIZE);
+
+    const filterBtn = (st, label, count) => `
+      <button type="button" class="btn-leave-filter ${historyStatus === st ? 'active' : ''}" data-status="${st}" style="padding:4px 10px; font-size:11.5px; font-weight:700; border-radius:14px; border:1px solid ${historyStatus === st ? '#1d4ed8' : 'var(--line)'}; background:${historyStatus === st ? '#1d4ed8' : 'var(--surface-alt)'}; color:${historyStatus === st ? '#fff' : 'var(--muted)'}; cursor:pointer; transition:all 0.15s;">
+        ${label} (${count})
+      </button>
+    `;
 
     return `
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        ${applications.map(app => `
-          <div class="card" style="padding:14px 18px; border-left:4px solid ${typeColor[app.leaveType] || '#94a3b8'};">
-            <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px;">
-              <div style="flex:1; min-width:200px;">
-                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:4px;">
-                  <span style="font-weight:800; font-size:13.5px; color:var(--ink);">${escapeHtml(app.leaveLabel)}</span>
-                  <span style="padding:2px 8px; border-radius:var(--radius-pill); font-size:10.5px; font-weight:700; background:${statusBg[app.status] || '#f1f5f9'}; color:${statusFg[app.status] || '#64748b'};">${escapeHtml(app.status)}</span>
-                </div>
-                <div style="font-size:12.5px; color:var(--ink); margin-bottom:2px;">📅 ${escapeHtml(app.fromDate)} to ${escapeHtml(app.toDate)} · <strong>${app.days} day(s)</strong>${app.halfDay ? ' (Half Day)' : ''}</div>
-                <div style="font-size:12px; color:var(--muted);">Reason: ${escapeHtml(app.reason)}</div>
-                ${app.managerRemarks ? `<div style="font-size:11.5px; color:var(--primary); margin-top:3px;">Manager: "${escapeHtml(app.managerRemarks)}"</div>` : ''}
-              </div>
-              <div style="text-align:right; font-size:11px; color:var(--muted); white-space:nowrap;">
-                Applied: ${escapeHtml(app.appliedAt ? new Date(app.appliedAt).toLocaleDateString('en-IN') : '')}
-                ${app.approvedAt ? `<br>Reviewed: ${new Date(app.approvedAt).toLocaleDateString('en-IN')}` : ''}
-                ${app.status === 'Pending' ? `<br><button type="button" class="btn btn-secondary btn-sm btn-cancel-leave" data-id="${escapeHtml(app.id)}" style="font-size:11px; color:#dc2626; border-color:rgba(220,38,38,0.3); margin-top:4px;">Cancel</button>` : ''}
-              </div>
-            </div>
+      <div style="display:flex; flex-direction:column; gap:12px;">
+        <!-- Search and Filter Bar -->
+        <div style="display:flex; flex-direction:column; gap:8px; background:var(--surface-alt); padding:10px 14px; border-radius:var(--radius-sm); border:1px solid var(--line);">
+          <div style="display:flex; gap:8px;">
+            <input type="text" id="iptLeaveHistorySearch" value="${escapeHtml(historySearch)}" placeholder="Search leave reason, date (YYYY-MM-DD), or type..." style="flex:1; padding:7px 12px; font-size:12.5px; border:1px solid var(--line); border-radius:6px; background:var(--surface-card); color:var(--ink);">
+            ${historySearch ? `<button type="button" id="btnClearLeaveHistorySearch" class="btn btn-secondary btn-sm" style="padding:6px 12px; font-size:12px;">✕ Clear</button>` : ''}
           </div>
-        `).join('')}
+          <div style="display:flex; gap:6px; flex-wrap:wrap; align-items:center;">
+            <span style="font-size:11px; font-weight:700; color:var(--muted); text-transform:uppercase; margin-right:4px;">Filter:</span>
+            ${filterBtn('All', 'All', applications.length)}
+            ${filterBtn('Pending', 'Pending', applications.filter(a => a.status === 'Pending').length)}
+            ${filterBtn('Approved', 'Approved', applications.filter(a => a.status === 'Approved').length)}
+            ${filterBtn('Rejected', 'Rejected', applications.filter(a => a.status === 'Rejected').length)}
+            ${filterBtn('Cancelled', 'Cancelled', applications.filter(a => a.status === 'Cancelled').length)}
+          </div>
+        </div>
+
+        <!-- Count indicator -->
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:11.5px; color:var(--muted); font-weight:600; padding:0 2px;">
+          <span>Showing ${filtered.length} application${filtered.length === 1 ? '' : 's'}</span>
+          ${totalPages > 1 ? `<span>Page ${safePage} of ${totalPages}</span>` : ''}
+        </div>
+
+        <!-- Applications List -->
+        ${filtered.length === 0 ? `
+          <div style="text-align:center; padding:32px 20px; color:var(--muted); background:var(--surface-alt); border-radius:var(--radius-sm); border:1px dashed var(--line);">
+            <div style="font-size:32px; margin-bottom:6px;">🔍</div>
+            <div style="font-weight:700; font-size:13px;">No leave applications found</div>
+            <div style="font-size:11.5px; margin-top:2px;">${historySearch ? `No matches for "${escapeHtml(historySearch)}"` : 'No applications match the selected filter'}</div>
+          </div>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${paginated.map(app => `
+              <div class="card" style="padding:12px 16px; border-left:4px solid ${typeColor[app.leaveType] || '#94a3b8'};">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:8px;">
+                  <div style="flex:1; min-width:200px;">
+                    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:3px;">
+                      <span style="font-weight:800; font-size:13.5px; color:var(--ink);">${escapeHtml(app.leaveLabel)}</span>
+                      <span style="padding:2px 8px; border-radius:var(--radius-pill); font-size:10.5px; font-weight:700; background:${statusBg[app.status] || '#f1f5f9'}; color:${statusFg[app.status] || '#64748b'};">${escapeHtml(app.status)}</span>
+                    </div>
+                    <div style="font-size:12.5px; color:var(--ink); margin-bottom:2px;">📅 ${escapeHtml(app.fromDate)} to ${escapeHtml(app.toDate)} · <strong>${app.days} day(s)</strong>${app.halfDay ? ' (Half Day)' : ''}</div>
+                    <div style="font-size:12px; color:var(--muted);">Reason: ${escapeHtml(app.reason)}</div>
+                    ${app.managerRemarks ? `<div style="font-size:11.5px; color:var(--primary); margin-top:3px;">Manager: "${escapeHtml(app.managerRemarks)}"</div>` : ''}
+                  </div>
+                  <div style="text-align:right; font-size:11px; color:var(--muted); white-space:nowrap;">
+                    Applied: ${escapeHtml(app.appliedAt ? new Date(app.appliedAt).toLocaleDateString('en-IN') : '')}
+                    ${app.approvedAt ? `<br>Reviewed: ${new Date(app.approvedAt).toLocaleDateString('en-IN')}` : ''}
+                    ${app.status === 'Pending' ? `<br><button type="button" class="btn btn-secondary btn-sm btn-cancel-leave" data-id="${escapeHtml(app.id)}" style="font-size:11px; color:#dc2626; border-color:rgba(220,38,38,0.3); margin-top:4px;">Cancel</button>` : ''}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+
+        <!-- Pagination Controls -->
+        ${totalPages > 1 ? `
+          <div style="display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:var(--surface-alt); border-radius:var(--radius-sm); border:1px solid var(--line); margin-top:4px;">
+            <button type="button" id="btnLeaveHistoryPrev" class="btn btn-secondary btn-sm" ${safePage <= 1 ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>◀ Prev</button>
+            <span style="font-size:12px; font-weight:700; color:var(--ink);">Page ${safePage} of ${totalPages}</span>
+            <button type="button" id="btnLeaveHistoryNext" class="btn btn-secondary btn-sm" ${safePage >= totalPages ? 'disabled style="opacity:0.5; cursor:not-allowed;"' : ''}>Next ▶</button>
+          </div>
+        ` : ''}
       </div>
     `;
   }
@@ -443,6 +503,48 @@ export function openLeaveModal(options = {}) {
           render();
         }
       });
+    });
+
+    // History tab search, filter, and pagination
+    const iptHistorySearch = modal.querySelector('#iptLeaveHistorySearch');
+    iptHistorySearch?.addEventListener('input', (e) => {
+      historySearch = e.target.value;
+      historyPage = 1;
+      render();
+      // Keep focus on input after re-render
+      setTimeout(() => {
+        const inp = modal.querySelector('#iptLeaveHistorySearch');
+        if (inp) {
+          inp.focus();
+          inp.setSelectionRange(inp.value.length, inp.value.length);
+        }
+      }, 0);
+    });
+
+    modal.querySelector('#btnClearLeaveHistorySearch')?.addEventListener('click', () => {
+      historySearch = '';
+      historyPage = 1;
+      render();
+    });
+
+    modal.querySelectorAll('.btn-leave-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        historyStatus = btn.getAttribute('data-status') || 'All';
+        historyPage = 1;
+        render();
+      });
+    });
+
+    modal.querySelector('#btnLeaveHistoryPrev')?.addEventListener('click', () => {
+      if (historyPage > 1) {
+        historyPage--;
+        render();
+      }
+    });
+
+    modal.querySelector('#btnLeaveHistoryNext')?.addEventListener('click', () => {
+      historyPage++;
+      render();
     });
 
     // Leave calendar navigation

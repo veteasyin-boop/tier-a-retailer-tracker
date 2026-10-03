@@ -1,6 +1,10 @@
 import { storage } from '../services/storage.js';
 import { showToast } from './toast.js';
 import * as XLSX from 'xlsx';
+import { naturalLanguageBi, QUERY_INTENTS } from '../../packages/analytics/naturalLanguageBi.js';
+import { aiGateway } from '../../packages/neuroncore/aiGateway.js';
+import { ragEngine } from '../../packages/neuroncore/ragEngine.js';
+import { salesInventoryAnalyst } from '../../packages/neuroncore/salesInventoryAnalyst.js';
 
 // Local storage keys
 const KEY_GEMINI_API_KEY = 'tat_gemini_api_key';
@@ -75,6 +79,24 @@ export function renderGeminiAiChatTab() {
       <!-- Quick Suggestion Action Chips -->
       <div style="background: var(--surface-alt); padding: 10px 18px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; overflow-x: auto; white-space: nowrap;">
         <span style="font-size: 11.5px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; flex-shrink: 0;">💡 Quick Prompts:</span>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="What is the package of practices and Fall Armyworm control for Rabi Maize?">
+          🌽 Maize Agronomy (RAG)
+        </button>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="Highlight territory sales anomalies and unvisited high potential accounts.">
+          🔍 Territory Sales Anomalies
+        </button>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="Which retailers in Bihta have not ordered in 30 days?">
+          ⏳ Inactive Retailers (Bihta)
+        </button>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="Show depot inventory aging and liquidation risk analysis.">
+          📦 Depot Inventory Risk
+        </button>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="Show recent immutable system audit trail and state changes.">
+          📜 Immutable Audit Trail
+        </button>
+        <button type="button" class="btn-ai-prompt-chip" data-prompt="Audit TA/DA travel and mileage expense claims.">
+          💰 TA/DA Expense Audit
+        </button>
         <button type="button" class="btn-ai-prompt-chip" data-prompt="Give me a comprehensive performance briefing across all 8 field reps today.">
           📊 Rep Performance Overview
         </button>
@@ -499,19 +521,18 @@ async function handleAiQuery(query, container) {
   let responseText = '';
 
   try {
-    if (apiKey) {
-      responseText = await callGoogleGeminiApi(query, apiKey);
-    } else {
-      responseText = generateLocalAgTechResponse(query);
-    }
+    const gatewayRes = await aiGateway.generateResponse({
+      prompt: query,
+      systemInstruction: buildSystemPrompt(),
+      history: getHistory(),
+      apiKey,
+      model: getModel(),
+      fallbackFn: (q) => generateLocalAgTechResponse(q)
+    });
+    responseText = gatewayRes.text;
   } catch(err) {
     console.warn("AI generation error:", err);
-    try {
-      responseText = `⚠️ *Note: Gemini API returned an error (${err.message}). Seamlessly switched to local AgTech Engine:*\n\n` + 
-        generateLocalAgTechResponse(query);
-    } catch(fallbackErr) {
-      responseText = `🌱 **Bihar AgTech Operations Analysis**\n\nI encountered a processing notice: ${fallbackErr.message}.\n\nHere is your baseline system status:\n• Database: 573 Tier-A Retailers across 8 Bihar districts.\n• All field telemetry is live and synced. What specific data would you like to review?`;
-    }
+    responseText = generateLocalAgTechResponse(query);
   } finally {
     isGenerating = false;
     document.getElementById(placeholderId)?.remove();
@@ -729,6 +750,50 @@ function generateLocalAgTechResponse(query) {
         `• **To regularize attendance**: Go to the **📋 Indian Attendance & Muster Roll** tab.\n\n` +
         `Would you like me to analyze or display the relevant records for you first?`;
     }
+  }
+
+  // 1.5. Natural Language BI Query Parser & Structured Execution (Section 47 / Module 28)
+  if (currentAttachedFiles.length === 0) {
+    const biParsed = naturalLanguageBi.parseQuery(query);
+    if (biParsed.intent !== QUERY_INTENTS.GENERAL_STATS) {
+      const res = naturalLanguageBi.execute(query);
+      const tableHeader = `| ${res.columns.join(' | ')} |`;
+      const tableSep = `| ${res.columns.map(() => ':---').join(' | ')} |`;
+      const tableRows = res.data.map(row => `| ${row.map(c => String(c).replace(/\|/g, '/')).join(' | ')} |`).join('\n');
+
+      return `📊 **${res.title}**\n\n` +
+        `*${res.summary}*\n\n` +
+        `${tableHeader}\n${tableSep}\n${tableRows}\n\n` +
+        `🔍 **Source Fields Traced**: ${res.sourceFields.map(f => `\`${f}\``).join(', ')}\n\n` +
+        `💡 **Strategic Insight**: ${res.insights}`;
+    }
+  }
+
+  // 1.6. Agronomy & Product RAG Retrieval (Section 50 / Module 31)
+  if (q.includes('pest') || q.includes('maize') || q.includes('paddy') || q.includes('wheat') || q.includes('blight') || q.includes('chlorpyrifos') || q.includes('vgy') || q.includes('sop') || q.includes('seed rate') || q.includes('fall armyworm')) {
+    const ragAnswer = ragEngine.answerQuestion(query);
+    if (ragAnswer.citations && ragAnswer.citations.length > 0) {
+      return `🌾 **Agronomy & Technical RAG Intelligence**\n\n` +
+        `${ragAnswer.answer}\n\n` +
+        `📚 **Verified Document Citations:**\n` +
+        ragAnswer.citations.map(c => `• \`${c}\``).join('\n') + `\n\n` +
+        `💡 *Category: ${ragAnswer.category} | Permission-aware internal technical guidance.*`;
+    }
+  }
+
+  // 1.7. AI Sales & Anomaly Analyst (Section 51 / Module 32)
+  if (q.includes('anomaly') || q.includes('sales analysis') || q.includes('unvisited high') || q.includes('coverage deficit')) {
+    const salesReport = salesInventoryAnalyst.generateSalesAnalysis();
+    return `📈 **AI Sales & Territory Anomaly Report**\n\n` +
+      `**Scope**: ${salesReport.scope}\n\n` +
+      `### 🔍 Key Observable Facts:\n` +
+      `• **Total Accounts**: ${salesReport.facts.totalAccounts}\n` +
+      `• **Contacted**: ${salesReport.facts.contactedCount} (${salesReport.facts.coverageRatePct}% coverage)\n` +
+      `• **High Potential (>₹15k)**: ${salesReport.facts.highPotentialAccountsCount} dealers\n\n` +
+      `### 🚨 Detected Anomalies:\n` +
+      (salesReport.anomalies.length > 0 ? salesReport.anomalies.map(a => `• **${a.type}** (${a.severity}): ${a.fact} (e.g. ${a.sampleEntities.join(', ')})`).join('\n') : '*No critical territory anomalies detected.*') + `\n\n` +
+      `### 💡 L1 Action Proposals (Subject to Manager Approval):\n` +
+      salesReport.recommendations.map(r => `• ${r}`).join('\n');
   }
 
   // 2. Querying Attached Excel Files

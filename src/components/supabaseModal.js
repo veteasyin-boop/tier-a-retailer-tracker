@@ -232,7 +232,7 @@ async function handlePushLocalToCloud() {
 
 async function handlePullCloudToLocal() {
   const btn = document.getElementById('btnSpPull');
-  if (!confirm('Pull all retailer and assistant data from Supabase? This will update your local records.')) {
+  if (!confirm('Pull all datasets from Supabase Cloud? This will refresh all 14 tables including check-in logs, attendance, leaves, TA/DA, dealer visits, and SOP data.')) {
     return;
   }
 
@@ -242,20 +242,12 @@ async function handlePullCloudToLocal() {
   }
 
   try {
-    const cloudRows = await supabaseService.fetchRetailers();
-    if (cloudRows && cloudRows.length > 0) {
-      storage.rows = cloudRows;
-      storage.saveToLocal();
+    const success = await storage.pullAllFromCloud();
+    if (success) {
+      showToast(`Cloud pull complete! ${storage.rows.length} retailers, ${storage.getCheckInLogs().length} check-ins, and all records refreshed!`, '📥');
+    } else {
+      showToast('Could not complete full cloud pull. Check console for details.', '⚠️');
     }
-
-    const cloudAssistants = await supabaseService.fetchAssistants();
-    if (cloudAssistants && cloudAssistants.length > 0) {
-      storage.assistants = cloudAssistants;
-      storage.saveAssistantsToLocal();
-    }
-
-    storage.triggerChange();
-    showToast(`Pulled ${cloudRows ? cloudRows.length : 0} retailers from Supabase!`, '📥');
   } catch (err) {
     showToast(`Pull error: ${err.message}`, '❌');
   } finally {
