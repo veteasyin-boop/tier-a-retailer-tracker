@@ -95,3 +95,15 @@ The existing `public.audit_logs` table is a legacy table whose actor foreign key
 | `GET /api/v1/audit-events` | Supabase access token + active tenant membership | `audit.read` |
 
 No invitation, owner bootstrap, role mutation, org mutation, or operational business-data endpoints are exposed yet.
+
+
+### Audit pagination contract and verification
+
+The audit list query accepts:
+- `limit`: integer from 1 through 100; defaults to 50.
+- `entityType`: optional exact entity-type filter, 1–100 characters.
+- `cursor`: optional opaque base64url-encoded JSON object containing `createdAt` (offset-aware ISO timestamp) and `id` (UUID).
+
+Results are ordered by `created_at DESC, id DESC`. The API fetches one extra row to determine whether another page exists and emits `nextCursor` only when another page is available. The cursor is a pagination position only; it is not an authorization credential. Every query independently enforces the authenticated tenant predicate and `audit.read` permission.
+
+The API unit tests verify tenant filtering, bounded page size, ordering, cursor construction, and malformed-cursor rejection using a mocked Supabase client. The database CI additionally runs a read-only integration check against the local Supabase PostgREST service to ensure the composite `.or()` cursor expression is accepted by the real query parser. That integration check deliberately uses a non-existent tenant UUID and performs no writes; it verifies filter parsing, not returned-row ordering or pagination behavior against populated audit data.
