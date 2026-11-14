@@ -141,6 +141,8 @@ function renderTenantSelection(container, state) {
       <p id="tenantSelectError" role="alert" style="color:var(--danger); min-height:20px; font-size:13px;"></p>
       <button id="tenantSelectButton" class="btn btn-primary" type="submit" style="width:100%; padding:12px;">Continue →</button>
     </form>
+    <button id="exportOfflineQueue" class="btn btn-secondary" type="button" style="width:100%; margin-top:8px;">Export preserved offline operations</button>
+    <p id="queueExportStatus" style="font-size:11px; color:var(--muted); min-height:16px;"></p>
     <button id="tenantSignOut" class="btn btn-secondary" type="button" style="width:100%; margin-top:8px;">Sign out</button>
   `);
 
@@ -164,6 +166,7 @@ function renderTenantSelection(container, state) {
     }
   });
 
+  attachOfflineQueueExport(container);
   container.querySelector('#tenantSignOut')?.addEventListener('click', () => auth.signOut());
 }
 
