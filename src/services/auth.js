@@ -42,7 +42,12 @@ class AuthService {
   }
 
   get isTenantAuthenticated() {
-    return Boolean(this.user && this.tenantContext && this.selectedTenantId);
+    return Boolean(
+      this.user?.id
+      && this.tenantContext?.userId === this.user.id
+      && this.tenantContext?.tenantId === this.selectedTenantId
+      && this.selectedTenantId
+    );
   }
 
   get isAuthenticated() {
@@ -67,6 +72,13 @@ class AuthService {
         if (event === 'SIGNED_OUT' || !nextSession) {
           this.clearIdentity('signed_out');
           return;
+        }
+        if (event === 'SIGNED_IN' && nextSession.user?.id !== this.user?.id) {
+          this.tenantContext = null;
+          this.selectedTenantId = null;
+          this.tenants = [];
+          localStorage.removeItem(SELECTED_TENANT_KEY);
+          this.status = 'loading_tenants';
         }
         if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
           this.session = nextSession;
@@ -117,6 +129,7 @@ class AuthService {
     const user = await supabaseService.getCurrentUser();
     if (!user?.id) throw new Error('Supabase could not verify the signed-in user.');
     this.user = user;
+    this.tenants = [];
     this.tenantContext = null;
     this.selectedTenantId = null;
     this.status = 'loading_tenants';
