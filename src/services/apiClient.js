@@ -26,7 +26,7 @@ function resolveApiBaseUrl() {
 }
 
 export async function tenantApiGet(path, tenantId = null) {
-  if (!path.startsWith('/tenants')) {
+  if (!['/tenants', '/tenants/me'].includes(path)) {
     throw new Error('Unsupported API path.');
   }
 
