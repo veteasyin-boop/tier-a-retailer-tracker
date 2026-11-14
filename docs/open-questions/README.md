@@ -8,4 +8,4 @@
 
 | OQ ID | Title | Module | Status | Date Logged |
 | :--- | :--- | :--- | :--- | :--- |
-| *None active* | All baseline prototype behaviors inventoried in `PROTOTYPE-ARCHAEOLOGY.md` | - | Resolved | 2026-10-04 |
+| OQ-0001 | Tenant owner and initial administrator role | Identity / RBAC | Blocking | 2026-11-15 |
