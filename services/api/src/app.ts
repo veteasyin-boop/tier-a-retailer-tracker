@@ -8,6 +8,7 @@ import { parseTenantId, resolveTenantContext, TenantContextError } from "./modul
 import { organizationRoutes } from "./modules/organization/organization.routes.js";
 import { auditRoutes } from "./modules/audit/audit.routes.js";
 import { tenantRoutes } from "./modules/identity/tenant.routes.js";
+import { membershipRoutes } from "./modules/memberships/membership.routes.js";
 
 type Dependencies = { config: AppConfig; supabase: SupabaseClients };
 
@@ -58,7 +59,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     if (request.routeOptions.url === "/health") return;
 
     const authorization = request.headers.authorization;
-    const bearerMatch = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
+    const bearerMatch = authorization?.trim().match(/^Bearer\\s+(\\S+)$/i);
     if (!bearerMatch) {
       return reply.code(401).send({
         success: false,
@@ -107,6 +108,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   await app.register(organizationRoutes, { prefix: "/api/v1/organization", supabase });
   await app.register(auditRoutes, { prefix: "/api/v1", supabase });
   await app.register(tenantRoutes, { prefix: "/api/v1", supabase });
+  await app.register(membershipRoutes, { prefix: "/api/v1", supabase });
 
   return app;
 }
