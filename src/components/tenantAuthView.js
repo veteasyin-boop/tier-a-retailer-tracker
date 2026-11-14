@@ -247,7 +247,7 @@ export function renderTenantAuthView(container) {
       `);
       container.querySelector('#tenantRetry')?.addEventListener('click', async () => {
         try {
-          await auth.refreshTenantMemberships();
+          await auth.initialize();
           renderTenantAuthView(container);
         } catch (error) {
           auth.error = error.message || 'Unable to restore tenant membership.';
