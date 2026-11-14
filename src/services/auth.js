@@ -57,14 +57,6 @@ class AuthService {
   }
 
   async initialize() {
-    try {
-      assertTenantApiConfigured();
-    } catch (error) {
-      this.status = 'configuration_error';
-      this.error = error.message;
-      emitAuthChange();
-      return this.getState();
-    }
     const ready = await supabaseService.init();
     if (!ready) {
       this.status = 'configuration_error';
@@ -103,6 +95,14 @@ class AuthService {
 
     const session = await supabaseService.getCurrentSession();
     if (!session) {
+      try {
+        assertTenantApiConfigured();
+      } catch (error) {
+        this.status = 'configuration_error';
+        this.error = error.message;
+        emitAuthChange();
+        return this.getState();
+      }
       this.clearIdentity('signed_out');
       return this.getState();
     }
@@ -117,6 +117,17 @@ class AuthService {
       this.session = session;
       this.user = await supabaseService.getCurrentUser();
       this.status = 'password_recovery';
+      emitAuthChange();
+      return this.getState();
+    }
+
+    try {
+      assertTenantApiConfigured();
+    } catch (error) {
+      this.session = session;
+      this.user = await supabaseService.getCurrentUser();
+      this.status = 'configuration_error';
+      this.error = error.message;
       emitAuthChange();
       return this.getState();
     }
