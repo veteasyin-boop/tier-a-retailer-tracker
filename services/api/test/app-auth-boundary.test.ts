@@ -464,8 +464,9 @@ test("audit event listing rejects malformed cursors before querying audit data",
   });
 });
 
-test("applies tenant predicates to all organization collection endpoints", async () => {
-  await withApp({}, async (app, calls) => {
+test("applies tenant and explicit scope predicates to organization collection endpoints", async () => {
+  const allowedUnitId = "f1000000-0000-4000-8000-000000000001";
+  await withApp({ scopeUnitIds: [allowedUnitId] }, async (app, calls) => {
     const endpoints = [
       { url: "/api/v1/organization/unit-types", table: "org_unit_types" },
       { url: "/api/v1/organization/units", table: "org_units" },
@@ -482,6 +483,9 @@ test("applies tenant predicates to all organization collection endpoints", async
       const query = calls.find((call) => call.table === endpoint.table);
       assert.ok(query, `expected ${endpoint.table} query to execute`);
       assert.equal(query.filters.tenant_id, tenantId, `${endpoint.table} must be tenant-filtered`);
+      if (endpoint.table === "org_units") {
+        assert.deepEqual(query.filters.id, [allowedUnitId], "org units must be limited to explicit scope");
+      }
     }
   });
 });
@@ -557,7 +561,7 @@ test("organization metadata routes reject tree filters instead of silently ignor
 });
 
 test("organizational unit route applies the rootsOnly filter", async () => {
-  await withApp({}, async (app, calls) => {
+  await withApp({ scopeUnitIds: ["f1000000-0000-4000-8000-000000000001"] }, async (app, calls) => {
     const response = await app.inject({
       method: "GET",
       url: "/api/v1/organization/units?rootsOnly=true",
