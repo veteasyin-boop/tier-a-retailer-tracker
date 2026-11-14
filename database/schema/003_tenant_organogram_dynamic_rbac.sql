@@ -60,7 +60,7 @@ begin
       select u.id, u.parent_unit_id
       from public.tenant_org_units u
       where u.tenant_id = new.tenant_id and u.id = new.parent_unit_id
-      union all
+      union
       select p.id, p.parent_unit_id
       from public.tenant_org_units p
       join ancestors a on p.id = a.parent_unit_id
@@ -116,11 +116,11 @@ create table if not exists public.tenant_memberships (
   constraint fk_membership_designation
     foreign key (tenant_id, designation_id)
     references public.tenant_designations(tenant_id, id)
-    on delete set null,
+    on delete restrict,
   constraint fk_membership_org_unit
     foreign key (tenant_id, org_unit_id)
     references public.tenant_org_units(tenant_id, id)
-    on delete set null
+    on delete restrict
 );
 
 create unique index if not exists uq_tenant_employee_code
@@ -497,7 +497,10 @@ using (is_active = true);
 drop policy if exists tenant_org_units_read on public.tenant_org_units;
 create policy tenant_org_units_read
 on public.tenant_org_units for select to authenticated
-using (private.has_tenant_permission(tenant_id, 'organization.read'));
+using (
+  private.has_tenant_permission(tenant_id, 'organization.read')
+  or private.has_tenant_permission(tenant_id, 'organization.manage')
+);
 
 drop policy if exists tenant_org_units_manage on public.tenant_org_units;
 create policy tenant_org_units_manage
@@ -573,6 +576,7 @@ using (
       and m.employment_status = 'active'
   )
   or private.has_tenant_permission(tenant_id, 'membership.read')
+  or private.has_tenant_permission(tenant_id, 'membership.manage')
 );
 
 drop policy if exists tenant_membership_roles_manage on public.tenant_membership_roles;
@@ -593,6 +597,7 @@ using (
       and m.employment_status = 'active'
   )
   or private.has_tenant_permission(tenant_id, 'membership.read')
+  or private.has_tenant_permission(tenant_id, 'scope.assign')
 );
 
 drop policy if exists tenant_membership_scopes_manage on public.tenant_membership_scopes;
@@ -620,6 +625,7 @@ using (
       and m.employment_status = 'active'
   )
   or private.has_tenant_permission(tenant_id, 'membership.read')
+  or private.has_tenant_permission(tenant_id, 'reporting.manage')
 );
 
 drop policy if exists tenant_reporting_lines_manage on public.tenant_reporting_lines;
