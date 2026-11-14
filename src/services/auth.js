@@ -61,20 +61,6 @@ class AuthService {
       return this.getState();
     }
 
-    const session = await supabaseService.getCurrentSession();
-    if (!session) {
-      this.clearIdentity('signed_out');
-      return this.getState();
-    }
-
-    try {
-      await this.loadAuthenticatedIdentity(session);
-    } catch (error) {
-      this.error = error.message || 'Unable to restore your session.';
-      this.status = 'error';
-      emitAuthChange();
-    }
-
     if (!this.authSubscription) {
       this.authSubscription = supabaseService.onAuthStateChange((event, nextSession) => {
         if (event === 'SIGNED_OUT' || !nextSession) {
@@ -87,6 +73,20 @@ class AuthService {
           emitAuthChange();
         }
       });
+    }
+
+    const session = await supabaseService.getCurrentSession();
+    if (!session) {
+      this.clearIdentity('signed_out');
+      return this.getState();
+    }
+
+    try {
+      await this.loadAuthenticatedIdentity(session);
+    } catch (error) {
+      this.error = error.message || 'Unable to restore your session.';
+      this.status = 'error';
+      emitAuthChange();
     }
 
     return this.getState();
