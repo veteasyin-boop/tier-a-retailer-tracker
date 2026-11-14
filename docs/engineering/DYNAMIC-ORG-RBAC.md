@@ -43,12 +43,12 @@ New permission definitions are registered but **not automatically assigned** to 
 - Organizational hierarchy has database cycle protection and tenant-level advisory locking during mutations.
 - Dotted-line reporting is informational and does not inherit access.
 - RLS is enabled on all six new tables. Authenticated clients have read-only access; writes are server-side only.
-- Service-role credentials must remain in the NestJS runtime and never in browser/PWA code.
+- Service-role credentials must remain in the Fastify API runtime and never in browser/PWA code.
 - Every mutation must be audited server-side with tenant, actor, action, entity, and before/after diff.
 
 ## Important implementation boundary
 
-This migration creates the data foundation only. The scope resolver, permission delegation rules, invitation/provisioning endpoints, and audit-writing transaction service must be implemented in the NestJS modular monolith before operational data APIs rely on this model. Never interpret a supplied `X-Tenant-ID`, role code, or org-unit ID as proof of authorization.
+This migration creates the data foundation only. The scope resolver, permission delegation rules, invitation/provisioning endpoints, and audit-writing transaction service must be implemented in the TypeScript Fastify modular monolith before operational data APIs rely on this model. Never interpret a supplied `X-Tenant-ID`, role code, or org-unit ID as proof of authorization.
 
 ## Verification
 
