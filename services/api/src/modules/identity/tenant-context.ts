@@ -36,6 +36,19 @@ export async function resolveTenantContext(
   user: User,
   tenantId: string
 ): Promise<TenantContext> {
+  const tenantResult = await admin
+    .from("tenants")
+    .select("id,is_active")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (tenantResult.error) {
+    throw new TenantContextError(500, "TENANT_LOOKUP_FAILED", "Unable to resolve tenant");
+  }
+  if (!tenantResult.data || tenantResult.data.is_active !== true) {
+    throw new TenantContextError(403, "TENANT_INACTIVE", "Tenant is inactive or unavailable");
+  }
+
   const membershipResult = await admin
     .from("memberships")
     .select("id,status")
@@ -67,7 +80,7 @@ export async function resolveTenantContext(
 
   if (roleIds.length > 0) {
     const [rolesResult2, permissionResult] = await Promise.all([
-      admin.from("tenant_roles").select("id,code").eq("tenant_id", tenantId).eq("is_active", true).in("id", roleIds),
+      admin.from("tenant_roles").select("id,code").eq("tenant_id", tenantId).eq("is_active", true).neq("code", "SUPER_ADMIN").in("id", roleIds),
       admin.from("tenant_role_permissions").select("permission_code,role_id").eq("tenant_id", tenantId).in("role_id", roleIds)
     ]);
     if (rolesResult2.error || permissionResult.error) {
