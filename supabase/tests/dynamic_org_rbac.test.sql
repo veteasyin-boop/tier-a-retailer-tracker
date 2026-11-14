@@ -118,7 +118,7 @@ SELECT is((SELECT org_unit_id FROM public.membership_org_assignments
 
 SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000001'), 2, 'member can read their tenant org units');
 SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000002'), 0, 'member cannot read another tenant org units');
-SELECT is((SELECT count(*)::int FROM public.membership_org_assignments), 1, 'member sees their primary organizational assignment');
+SELECT is((SELECT count(*)::int FROM public.membership_org_assignments), 2, 'member sees each tenant-specific primary organizational assignment');
 SELECT is((SELECT count(*)::int FROM public.membership_org_unit_scopes), 1, 'member sees their additional scope assignments');
 SELECT is((SELECT count(*)::int FROM public.membership_reporting_relationships), 1, 'member sees their reporting relationship');
 SELECT throws_ok(
