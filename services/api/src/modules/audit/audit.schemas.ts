@@ -14,8 +14,13 @@ export const createAuditEventSchema = z.object({
 
 export const auditListQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  before: z.string().datetime({ offset: true }).optional(),
+  cursor: z.string().min(1).max(512).optional(),
   entityType: z.string().trim().min(1).max(100).optional()
 }).strict();
 
 export type CreateAuditEventInput = z.infer<typeof createAuditEventSchema>;
+
+export const auditCursorSchema = z.object({
+  createdAt: z.string().datetime({ offset: true }),
+  id: z.string().uuid()
+}).strict();
