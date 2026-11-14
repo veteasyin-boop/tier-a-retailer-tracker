@@ -1,130 +1,296 @@
 import { supabaseService } from './supabase.js';
+import { tenantApiGet } from './apiClient.js';
 
-const MANAGER_PIN_KEY = 'tat_manager_pin';
+const SELECTED_TENANT_KEY = 'growta_selected_tenant';
 const CURRENT_REP_KEY = 'tat_assigned_rep';
 const ADMIN_SESSION_KEY = 'tat_admin_session';
-const AUTH_MODE_KEY = 'tat_auth_mode'; // 'cloud' | 'local'
+const LEGACY_PROTOTYPE_ENABLED = Boolean(
+  import.meta.env?.DEV && import.meta.env?.VITE_ENABLE_LEGACY_PROTOTYPE === 'true'
+);
 
-const DEFAULT_PIN = '2026';
+function emitAuthChange() {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('tracker:authStateChanged'));
+  }
+}
 
 class AuthService {
   constructor() {
-    this.currentRep = localStorage.getItem(CURRENT_REP_KEY) || '';
-    this.isAdmin = sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
-    this.authMode = localStorage.getItem(AUTH_MODE_KEY) || 'local';
+    this.session = null;
+    this.user = null;
+    this.tenants = [];
+    this.tenantContext = null;
+    this.selectedTenantId = null;
+    this.status = 'initializing';
+    this.error = null;
+    this._legacyIsAdmin = LEGACY_PROTOTYPE_ENABLED && sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
+    this.currentRep = LEGACY_PROTOTYPE_ENABLED ? (localStorage.getItem(CURRENT_REP_KEY) || '') : '';
+    this.authMode = 'tenant';
+    this.authSubscription = null;
   }
 
-  isCloudAuth() {
-    return this.authMode === 'cloud';
+  get isAdmin() {
+    return LEGACY_PROTOTYPE_ENABLED && this._legacyIsAdmin;
   }
 
-  async loginWithSupabase(email, password) {
-    if (!supabaseService.isReady) {
-      await supabaseService.init();
-    }
-    const { data, error } = await supabaseService.signInWithEmail(email, password);
-    if (error) {
-      return { success: false, error: error.message };
-    }
-
-    const user = data.user;
-    const role = user?.user_metadata?.role || (email.includes('admin') || email.includes('manager') ? 'manager' : 'field_rep');
-    const repName = user?.user_metadata?.rep_name || user?.email;
-
-    if (role === 'manager') {
-      this.isAdmin = true;
-      sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
-    } else {
-      this.setAssignedRep(repName);
-    }
-
-    this.authMode = 'cloud';
-    localStorage.setItem(AUTH_MODE_KEY, 'cloud');
-    return { success: true, user, role, repName };
+  set isAdmin(value) {
+    if (!LEGACY_PROTOTYPE_ENABLED) return;
+    this._legacyIsAdmin = Boolean(value);
+    if (this._legacyIsAdmin) sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
+    else sessionStorage.removeItem(ADMIN_SESSION_KEY);
   }
 
+  get isTenantAuthenticated() {
+    return Boolean(this.user && this.tenantContext && this.selectedTenantId);
+  }
+
+  get isAuthenticated() {
+    return Boolean(this.user);
+  }
+
+  isLegacyPrototypeEnabled() {
+    return LEGACY_PROTOTYPE_ENABLED;
+  }
+
+  async initialize() {
+    const ready = await supabaseService.init();
+    if (!ready) {
+      this.status = 'configuration_error';
+      this.error = 'Supabase is not configured. Check VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.';
+      emitAuthChange();
+      return this.getState();
+    }
+
+    const session = await supabaseService.getCurrentSession();
+    if (!session) {
+      this.clearIdentity('signed_out');
+      return this.getState();
+    }
+
+    try {
+      await this.loadAuthenticatedIdentity(session);
+    } catch (error) {
+      this.error = error.message || 'Unable to restore your session.';
+      this.status = 'error';
+      emitAuthChange();
+    }
+
+    if (!this.authSubscription) {
+      this.authSubscription = supabaseService.onAuthStateChange((event, nextSession) => {
+        if (event === 'SIGNED_OUT' || !nextSession) {
+          this.clearIdentity('signed_out');
+          return;
+        }
+        if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+          this.session = nextSession;
+          this.user = nextSession.user || this.user;
+          emitAuthChange();
+        }
+      });
+    }
+
+    return this.getState();
+  }
+
+  async signIn(email, password) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      throw new Error('Enter a valid email address.');
+    }
+    if (typeof password !== 'string' || password.length < 1 || password.length > 256) {
+      throw new Error('Enter your password.');
+    }
+
+    const ready = await supabaseService.init();
+    if (!ready) throw new Error('Supabase is not configured.');
+    const { data, error } = await supabaseService.signInWithEmail(normalizedEmail, password);
+    if (error) throw new Error(error.message || 'Email or password is incorrect.');
+
+    await this.loadAuthenticatedIdentity(data.session);
+    return this.getState();
+  }
+
+  async loadAuthenticatedIdentity(session) {
+    if (!session?.access_token) throw new Error('Supabase did not return an authenticated session.');
+    this.session = session;
+    const user = await supabaseService.getCurrentUser();
+    if (!user?.id) throw new Error('Supabase could not verify the signed-in user.');
+    this.user = user;
+    this.tenantContext = null;
+    this.selectedTenantId = null;
+    this.status = 'loading_tenants';
+    this.error = null;
+    emitAuthChange();
+
+    const response = await tenantApiGet('/tenants');
+    this.tenants = Array.isArray(response.data) ? response.data : [];
+    if (this.tenants.length === 0) {
+      this.status = 'no_memberships';
+      localStorage.removeItem(SELECTED_TENANT_KEY);
+      emitAuthChange();
+      return;
+    }
+
+    const rememberedTenantId = localStorage.getItem(SELECTED_TENANT_KEY);
+    if (rememberedTenantId && this.tenants.some((tenant) => tenant.id === rememberedTenantId)) {
+      try {
+        await this.selectTenant(rememberedTenantId);
+        return;
+      } catch {
+        localStorage.removeItem(SELECTED_TENANT_KEY);
+      }
+    }
+
+    this.status = 'tenant_selection';
+    emitAuthChange();
+  }
+
+  async selectTenant(tenantId) {
+    if (typeof tenantId !== 'string' || !this.tenants.some((tenant) => tenant.id === tenantId)) {
+      throw new Error('Select a tenant from your active memberships.');
+    }
+
+    const response = await tenantApiGet('/tenants/me', tenantId);
+    if (!response.data || response.data.tenantId !== tenantId || response.data.userId !== this.user?.id) {
+      throw new Error('The API returned an invalid tenant context.');
+    }
+
+    this.selectedTenantId = tenantId;
+    this.tenantContext = response.data;
+    localStorage.setItem(SELECTED_TENANT_KEY, tenantId);
+    this.status = 'tenant_ready';
+    this.error = null;
+    emitAuthChange();
+    return this.tenantContext;
+  }
+
+  async signOut() {
+    await supabaseService.signOutUser();
+    this.clearIdentity('signed_out');
+  }
+
+  async requestPasswordReset(email) {
+    const normalizedEmail = String(email || '').trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      throw new Error('Enter a valid email address.');
+    }
+    const ready = await supabaseService.init();
+    if (!ready) throw new Error('Supabase is not configured.');
+    const { error } = await supabaseService.resetPasswordForEmail(normalizedEmail, window.location.origin);
+    if (error) throw new Error(error.message || 'Password reset request failed.');
+  }
+
+  clearIdentity(status = 'signed_out') {
+    this.session = null;
+    this.user = null;
+    this.tenants = [];
+    this.tenantContext = null;
+    this.selectedTenantId = null;
+    this.status = status;
+    this.error = null;
+    localStorage.removeItem(SELECTED_TENANT_KEY);
+    emitAuthChange();
+  }
+
+  getState() {
+    return {
+      status: this.status,
+      error: this.error,
+      user: this.user ? { id: this.user.id, email: this.user.email || '' } : null,
+      tenants: this.tenants,
+      selectedTenantId: this.selectedTenantId,
+      tenantContext: this.tenantContext
+    };
+  }
+
+  can(permission) {
+    return Boolean(this.tenantContext?.permissions?.includes(permission));
+  }
+
+  canAny(permissions = []) {
+    return permissions.some((permission) => this.can(permission));
+  }
+
+  getSyncIdentity() {
+    if (!this.isTenantAuthenticated) return null;
+    return { userId: this.user.id, tenantId: this.selectedTenantId };
+  }
+
+  // The following compatibility methods exist only for an explicitly enabled
+  // Vite development prototype. They are never enabled in production builds.
   getManagerPin() {
-    return localStorage.getItem(MANAGER_PIN_KEY) || DEFAULT_PIN;
+    if (!LEGACY_PROTOTYPE_ENABLED) return null;
+    return import.meta.env?.VITE_LEGACY_MANAGER_PIN || null;
   }
 
-  setManagerPin(newPin) {
-    if (!newPin || newPin.length < 4) throw new Error('PIN must be at least 4 digits');
-    localStorage.setItem(MANAGER_PIN_KEY, newPin);
+  setManagerPin() {
+    throw new Error('Local manager PIN changes are disabled. Use Supabase Auth and tenant permissions.');
   }
 
   verifyManagerPin(inputPin) {
-    const validPin = this.getManagerPin();
-    return String(inputPin).trim() === String(validPin).trim();
+    const configuredPin = this.getManagerPin();
+    return Boolean(configuredPin && String(inputPin) === String(configuredPin));
   }
 
   loginAsManager(inputPin) {
-    if (this.verifyManagerPin(inputPin)) {
-      this.isAdmin = true;
-      sessionStorage.setItem(ADMIN_SESSION_KEY, 'true');
-      return true;
-    }
-    return false;
+    if (!LEGACY_PROTOTYPE_ENABLED || !this.verifyManagerPin(inputPin)) return false;
+    this.isAdmin = true;
+    return true;
   }
 
   async logoutManager() {
     this.isAdmin = false;
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-    if (this.isCloudAuth()) {
-      await supabaseService.signOutUser().catch(() => {});
-    }
+    if (this.authMode === 'cloud') await this.signOut();
   }
 
   getAssignedRep() {
-    return localStorage.getItem(CURRENT_REP_KEY) || '';
+    return LEGACY_PROTOTYPE_ENABLED ? (localStorage.getItem(CURRENT_REP_KEY) || '') : '';
   }
 
   isRepAuthenticated() {
-    return Boolean(this.getAssignedRep());
+    return LEGACY_PROTOTYPE_ENABLED && Boolean(this.getAssignedRep());
   }
 
   setAssignedRep(repName) {
+    if (!LEGACY_PROTOTYPE_ENABLED) return;
     this.currentRep = repName || '';
-    if (repName) {
-      localStorage.setItem(CURRENT_REP_KEY, repName);
-    } else {
-      localStorage.removeItem(CURRENT_REP_KEY);
-    }
+    if (repName) localStorage.setItem(CURRENT_REP_KEY, repName);
+    else localStorage.removeItem(CURRENT_REP_KEY);
   }
 
   loginRep(repName, inputPassword, assistantsList = []) {
-    const asst = assistantsList.find(a => a.name === repName);
-    if (!asst) {
-      return { success: false, error: `Representative "${repName}" not found.` };
+    if (!LEGACY_PROTOTYPE_ENABLED) return { success: false, error: 'Use your individual email and password to sign in.' };
+    const assistant = assistantsList.find((item) => item.name === repName);
+    if (!assistant) return { success: false, error: 'Representative record not found.' };
+    const expectedPassword = typeof assistant.password === 'string' ? assistant.password : '';
+    if (!expectedPassword || String(inputPassword || '') !== expectedPassword) {
+      return { success: false, error: 'No valid local password is configured. Contact the system administrator.' };
     }
-
-    const expectedPassword = String(asst.password || 'rep123').trim();
-    if (String(inputPassword || '').trim() !== expectedPassword) {
-      return { success: false, error: `Incorrect password for ${repName}. Please check or contact admin.` };
-    }
-
-    this.setAssignedRep(asst.name);
-    return { success: true, rep: asst };
+    this.setAssignedRep(assistant.name);
+    return { success: true, rep: assistant };
   }
 
   logoutRep() {
     this.setAssignedRep('');
   }
 
-  // Only manager can unlock and change the assigned territory on this device
   unlockAndResetTerritory(pin) {
-    if (this.verifyManagerPin(pin)) {
-      this.setAssignedRep('');
-      return true;
-    }
-    return false;
+    if (!LEGACY_PROTOTYPE_ENABLED || !this.verifyManagerPin(pin)) return false;
+    this.setAssignedRep('');
+    return true;
   }
 
   canModifyRetailer(retailerDoc) {
     if (this.isAdmin) return true;
     const rep = this.getAssignedRep();
-    if (!rep) return false;
-    return retailerDoc.assistant === rep;
+    return Boolean(LEGACY_PROTOTYPE_ENABLED && rep && retailerDoc?.assistant === rep);
+  }
+
+  // Compatibility alias: never infer role from email or user-editable metadata.
+  async loginWithSupabase(email, password) {
+    return this.signIn(email, password);
   }
 }
 
 export const auth = new AuthService();
+export { LEGACY_PROTOTYPE_ENABLED };
