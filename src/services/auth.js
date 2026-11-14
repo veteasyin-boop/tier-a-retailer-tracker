@@ -86,6 +86,13 @@ class AuthService {
           localStorage.removeItem(SELECTED_TENANT_KEY);
           this.status = 'loading_tenants';
         }
+        if (event === 'PASSWORD_RECOVERY') {
+          this.session = nextSession;
+          this.user = nextSession.user || this.user;
+          this.status = 'password_recovery';
+          emitAuthChange();
+          return;
+        }
         if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
           this.session = nextSession;
           this.user = nextSession.user || this.user;
@@ -97,6 +104,17 @@ class AuthService {
     const session = await supabaseService.getCurrentSession();
     if (!session) {
       this.clearIdentity('signed_out');
+      return this.getState();
+    }
+
+    const recoveryParams = new URLSearchParams(
+      typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
+    );
+    if (recoveryParams.get('type') === 'recovery') {
+      this.session = session;
+      this.user = await supabaseService.getCurrentUser();
+      this.status = 'password_recovery';
+      emitAuthChange();
       return this.getState();
     }
 
@@ -214,6 +232,21 @@ class AuthService {
   async signOut() {
     await supabaseService.signOutUser();
     this.clearIdentity('signed_out');
+  }
+
+  async updatePassword(newPassword, confirmation) {
+    if (typeof newPassword !== 'string' || newPassword.length < 1 || newPassword.length > 256) {
+      throw new Error('Enter a valid new password.');
+    }
+    if (newPassword !== confirmation) {
+      throw new Error('The password confirmation does not match.');
+    }
+    const { data, error } = await supabaseService.updatePassword(newPassword);
+    if (error) throw new Error(error.message || 'Unable to update password.');
+    const session = data?.user ? await supabaseService.getCurrentSession() : null;
+    if (!session?.access_token) throw new Error('Password updated, but the session must be restored. Sign in again.');
+    await this.loadAuthenticatedIdentity(session);
+    return this.getState();
   }
 
   async requestPasswordReset(email) {
