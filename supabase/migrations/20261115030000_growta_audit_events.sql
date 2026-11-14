@@ -4,7 +4,7 @@ BEGIN;
 
 CREATE TABLE IF NOT EXISTS public.growta_audit_events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  tenant_id UUID NOT NULL REFERENCES public.tenants(id) ON DELETE RESTRICT,
   actor_user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE RESTRICT,
   request_id TEXT NOT NULL,
   action TEXT NOT NULL CHECK (length(action) BETWEEN 1 AND 100),
