@@ -29,32 +29,42 @@ type MockOptions = {
   membershipStatus?: string | null;
   selectedTenantId?: string;
   permissions?: string[];
+  auditRows?: Array<Record<string, unknown>>;
 };
 
 function makeSupabase(options: MockOptions = {}) {
-  const calls: Array<{ table: string; filters: Record<string, unknown> }> = [];
+  const calls: Array<{
+    table: string;
+    filters: Record<string, unknown>;
+    orderings: Array<{ column: string; ascending: boolean }>;
+    limit?: number;
+  }> = [];
   const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const {
     tokenValid = true,
     tenantActive = true,
     membershipStatus = "active",
     selectedTenantId = tenantId,
-    permissions = ["organization.read"]
+    permissions = ["organization.read"],
+    auditRows = []
   } = options;
 
   const admin = {
     from(table: string) {
       const filters: Record<string, unknown> = {};
-      const call = { table, filters };
+      const call = { table, filters, orderings: [] as Array<{ column: string; ascending: boolean }>, limit: undefined as number | undefined };
       calls.push(call);
       const builder: any = {
         select() { return builder; },
         eq(column: string, value: unknown) { filters[column] = value; return builder; },
         neq(column: string, value: unknown) { filters[`not:${column}`] = value; return builder; },
         in(column: string, value: unknown) { filters[column] = value; return builder; },
-        order() { return builder; },
+        order(column: string, options?: { ascending?: boolean }) {
+          call.orderings.push({ column, ascending: options?.ascending ?? true });
+          return builder;
+        },
         range() { return builder; },
-        limit() { return builder; },
+        limit(value: number) { call.limit = value; return builder; },
         is(column: string, value: unknown) { filters[column] = value; return builder; },
         or(expression: string) { filters.or = expression; return builder; },
         maybeSingle: async (): Promise<QueryResult> => {
@@ -74,6 +84,7 @@ function makeSupabase(options: MockOptions = {}) {
             role_id: roleId,
             permission_code
           }));
+          if (table === "growta_audit_events") data = auditRows;
           return Promise.resolve({ data, error: null, count: table === "org_unit_types" ? 0 : null })
             .then(resolve, reject);
         }
@@ -261,6 +272,91 @@ test("applies tenant predicates to every tenant-scoped identity and RBAC query",
       name: "resolve_membership_org_unit_scope",
       args: { p_tenant_id: tenantId, p_membership_id: membershipId }
     }]);
+  });
+});
+
+
+test("audit event listing is tenant-filtered and returns a bounded keyset page", async () => {
+  const firstEvent = {
+    id: "f1000000-0000-4000-8000-000000000001",
+    created_at: "2026-11-15T10:00:00.000Z",
+    actor_user_id: userId,
+    request_id: "req-1",
+    action: "membership.role.assigned",
+    entity_type: "membership",
+    entity_id: membershipId,
+    before_data: null,
+    after_data: { role: "reader" },
+    metadata: {}
+  };
+  const secondEvent = {
+    ...firstEvent,
+    id: "f1000000-0000-4000-8000-000000000002",
+    created_at: "2026-11-15T09:00:00.000Z"
+  };
+
+  await withApp({ permissions: ["audit.read"], auditRows: [firstEvent, secondEvent] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/audit-events?limit=1&entityType=membership",
+      headers: authHeaders
+    });
+
+    assert.equal(response.statusCode, 200);
+    const body = response.json();
+    assert.deepEqual(body.data, [firstEvent]);
+    assert.equal(typeof body.meta.nextCursor, "string");
+
+    const query = calls.find((call) => call.table === "growta_audit_events");
+    assert.ok(query, "audit query should execute");
+    assert.equal(query.filters.tenant_id, tenantId);
+    assert.equal(query.filters.entity_type, "membership");
+    assert.equal(query.limit, 2);
+    assert.deepEqual(query.orderings, [
+      { column: "created_at", ascending: false },
+      { column: "id", ascending: false }
+    ]);
+  });
+});
+
+test("audit event listing applies the composite keyset cursor to the tenant query", async () => {
+  const cursor = Buffer.from(JSON.stringify({
+    createdAt: "2026-11-15T10:00:00.000Z",
+    id: "f1000000-0000-4000-8000-000000000001"
+  }), "utf8").toString("base64url");
+
+  await withApp({ permissions: ["audit.read"] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: `/api/v1/audit-events?limit=10&cursor=${encodeURIComponent(cursor)}`,
+      headers: authHeaders
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.length, 0);
+    assert.equal(response.json().meta.nextCursor, null);
+
+    const query = calls.find((call) => call.table === "growta_audit_events");
+    assert.ok(query, "audit query should execute");
+    assert.equal(query.filters.tenant_id, tenantId);
+    assert.equal(
+      query.filters.or,
+      "created_at.lt.2026-11-15T10:00:00.000Z,and(created_at.eq.2026-11-15T10:00:00.000Z,id.lt.f1000000-0000-4000-8000-000000000001)"
+    );
+  });
+});
+
+test("audit event listing rejects malformed cursors before querying audit data", async () => {
+  await withApp({ permissions: ["audit.read"] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/audit-events?cursor=not-a-valid-cursor",
+      headers: authHeaders
+    });
+
+    assert.equal(response.statusCode, 400);
+    assert.equal(response.json().error.code, "INVALID_CURSOR");
+    assert.equal(calls.some((call) => call.table === "growta_audit_events"), false);
   });
 });
 
