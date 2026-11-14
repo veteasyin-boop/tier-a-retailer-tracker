@@ -13,12 +13,24 @@ class SupabaseService {
   }
 
   getCredentials() {
-    const url = localStorage.getItem(URL_KEY) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) || DEFAULT_URL;
-    const key = localStorage.getItem(KEY_KEY) || (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_ANON_KEY) || DEFAULT_KEY;
-    return { url: url.trim(), key: key.trim() };
+    const envUrl = import.meta.env?.VITE_SUPABASE_URL || '';
+    const envKey = import.meta.env?.VITE_SUPABASE_ANON_KEY || '';
+
+    // Production credentials are immutable build configuration. Never let a
+    // browser-controlled localStorage value redirect users' email/password.
+    if (import.meta.env?.PROD) {
+      return { url: String(envUrl).trim(), key: String(envKey).trim() };
+    }
+
+    const url = localStorage.getItem(URL_KEY) || envUrl || DEFAULT_URL;
+    const key = localStorage.getItem(KEY_KEY) || envKey || DEFAULT_KEY;
+    return { url: String(url).trim(), key: String(key).trim() };
   }
 
   saveCredentials(url, key) {
+    if (import.meta.env?.PROD) {
+      throw new Error('Supabase credentials are fixed at production build time.');
+    }
     if (url && key) {
       localStorage.setItem(URL_KEY, url.trim());
       localStorage.setItem(KEY_KEY, key.trim());
