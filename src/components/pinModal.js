@@ -47,7 +47,7 @@ function createPinModalDOM() {
 
       <form id="pinForm">
         <div style="margin-bottom: 14px;">
-          <input type="password" id="managerPinInput" maxlength="8" placeholder="Enter PIN (Default: 2026)" 
+          <input type="password" id="managerPinInput" maxlength="8" placeholder="Enter configured development PIN" 
                  style="font-size: 20px; letter-spacing: 6px; text-align: center; width: 100%; font-weight: 700;">
           <div id="pinErrorMsg" style="color: var(--danger); font-size: 12px; margin-top: 6px; font-weight: 600; min-height: 18px;"></div>
         </div>
@@ -70,7 +70,7 @@ function createPinModalDOM() {
     if (auth.verifyManagerPin(pin)) {
       closePinModal(true);
     } else {
-      document.getElementById('pinErrorMsg').textContent = 'Incorrect PIN. Try default (2026).';
+      document.getElementById('pinErrorMsg').textContent = 'Incorrect PIN. Contact your development administrator.';
     }
   });
 
