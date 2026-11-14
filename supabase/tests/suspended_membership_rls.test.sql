@@ -1,9 +1,9 @@
--- Suspended memberships cannot read role, scope, placement, or reporting metadata.
+-- Suspended memberships cannot read their own authorization and org metadata.
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(4);
+SELECT plan(5);
 
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a4000000-0000-4000-8000-000000000001', 'Suspension Test Tenant', 'suspension-test', 'Test', true);
@@ -16,19 +16,21 @@ INSERT INTO public.memberships (id, tenant_id, user_id, status) VALUES
   ('d4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000001', 'c4000000-0000-4000-8000-000000000001', 'suspended'),
   ('d4000000-0000-4000-8000-000000000002', 'a4000000-0000-4000-8000-000000000001', 'c4000000-0000-4000-8000-000000000002', 'active');
 
-INSERT INTO public.membership_roles (tenant_id, membership_id, role_id)
-SELECT 'a4000000-0000-4000-8000-000000000001',
-       'd4000000-0000-4000-8000-000000000001', id
-FROM public.tenant_roles
-WHERE tenant_id = 'a4000000-0000-4000-8000-000000000001'
-  AND code = 'FIELD_OFFICER';
+INSERT INTO public.tenant_roles (id, tenant_id, code, name)
+VALUES ('b4000000-0000-4000-8000-000000000001',
+        'a4000000-0000-4000-8000-000000000001', 'CUSTOM_MEMBER', 'Custom Member');
+INSERT INTO public.membership_roles (tenant_id, membership_id, role_id) VALUES
+  ('a4000000-0000-4000-8000-000000000001',
+   'd4000000-0000-4000-8000-000000000001',
+   'b4000000-0000-4000-8000-000000000001');
 
-INSERT INTO public.tenant_scope_assignments (tenant_id, membership_id, organization_id)
-SELECT 'a4000000-0000-4000-8000-000000000001',
-       'd4000000-0000-4000-8000-000000000001', id
-FROM public.organizations
-WHERE tenant_id = 'a4000000-0000-4000-8000-000000000001'
-LIMIT 1;
+INSERT INTO public.organizations (id, tenant_id, name, code)
+VALUES ('b4000000-0000-4000-8000-000000000002',
+        'a4000000-0000-4000-8000-000000000001', 'Test Organization', 'SUSPENSION-ORG');
+INSERT INTO public.tenant_scope_assignments (tenant_id, membership_id, organization_id) VALUES
+  ('a4000000-0000-4000-8000-000000000001',
+   'd4000000-0000-4000-8000-000000000001',
+   'b4000000-0000-4000-8000-000000000002');
 
 INSERT INTO public.org_unit_types (id, tenant_id, code, name) VALUES
   ('e4000000-0000-4000-8000-000000000001', 'a4000000-0000-4000-8000-000000000001', 'TEAM', 'Team');
@@ -52,6 +54,8 @@ SELECT is((SELECT count(*)::int FROM public.membership_org_assignments), 0,
   'suspended member cannot read own primary org placement');
 SELECT is((SELECT count(*)::int FROM public.membership_org_unit_scopes), 0,
   'suspended member cannot read own additional org scopes');
+SELECT is((SELECT count(*)::int FROM public.membership_reporting_relationships), 0,
+  'suspended member cannot read own reporting relationships');
 
 RESET ROLE;
 SELECT * FROM finish();
