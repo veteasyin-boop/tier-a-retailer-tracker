@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { SupabaseClients } from "../../platform/supabase.js";
-import { organizationListQuerySchema } from "./organization.schemas.js";
+import { organizationListQuerySchema, organizationMetadataListQuerySchema } from "./organization.schemas.js";
 import { permissionPreHandler } from "../authorization/require-permission.js";
 
 type RouteOptions = { supabase: SupabaseClients };
@@ -9,7 +9,7 @@ export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, 
   app.get("/unit-types", {
     preHandler: permissionPreHandler("organization.read")
   }, async (request, reply) => {
-    const parsed = organizationListQuerySchema.safeParse(request.query);
+    const parsed = organizationMetadataListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.code(400).send({
         success: false,
@@ -66,7 +66,7 @@ export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, 
   app.get("/designations", {
     preHandler: permissionPreHandler("organization.read")
   }, async (request, reply) => {
-    const parsed = organizationListQuerySchema.safeParse(request.query);
+    const parsed = organizationMetadataListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
       return reply.code(400).send({
         success: false,
