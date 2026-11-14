@@ -456,6 +456,7 @@ test("applies tenant predicates to all organization collection endpoints", async
 test("authentication hook protects every extracted route plugin", async () => {
   await withApp({}, async (app, calls) => {
     const paths = [
+      "/api/v1/tenants",
       "/api/v1/tenants/me",
       "/api/v1/organization/unit-types",
       "/api/v1/organization/units",
