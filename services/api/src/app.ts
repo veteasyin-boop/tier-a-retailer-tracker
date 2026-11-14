@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { AppConfig } from "./config.js";
 import type { SupabaseClients } from "./platform/supabase.js";
 import { parseTenantId, resolveTenantContext, TenantContextError, type TenantContext } from "./modules/identity/tenant-context.js";
+import { permissionPreHandler } from "./modules/authorization/require-permission.js";
+import { auditListQuerySchema } from "./modules/audit/audit.schemas.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -33,10 +35,14 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     const statusCode = typeof candidateStatus === "number" && candidateStatus >= 400 && candidateStatus < 600
       ? candidateStatus : 500;
     const errorMessage = error instanceof Error ? error.message : "Request failed";
+    const errorCode = typeof error === "object" && error !== null && "code" in error
+      && typeof (error as { code?: unknown }).code === "string"
+      ? (error as { code: string }).code
+      : statusCode === 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED";
     return reply.code(statusCode).send({
       success: false,
       error: {
-        code: statusCode === 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED",
+        code: errorCode,
         message: statusCode === 500 ? "An unexpected error occurred" : errorMessage,
         details: []
       },
@@ -93,6 +99,69 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       }
       throw error;
     }
+  });
+
+
+  app.get("/api/v1/audit-events", {
+    preHandler: permissionPreHandler("audit.read")
+  }, async (request, reply) => {
+    const parsed = auditListQuerySchema.safeParse(request.query);
+    if (!parsed.success) {
+      return reply.code(400).send({
+        success: false,
+        error: {
+          code: "INVALID_QUERY",
+          message: "Audit query parameters are invalid",
+          details: parsed.error.issues.map((issue) => ({
+            path: issue.path.join("."),
+            message: issue.message
+          }))
+        },
+        meta: { requestId: request.id, timestamp: new Date().toISOString() }
+      });
+    }
+
+    const context = request.tenantContext;
+    if (!context) {
+      return reply.code(401).send({
+        success: false,
+        error: { code: "UNAUTHORIZED", message: "Tenant context is required", details: [] },
+        meta: { requestId: request.id, timestamp: new Date().toISOString() }
+      });
+    }
+
+    let query = supabase.admin
+      .from("growta_audit_events")
+      .select("id,actor_user_id,request_id,action,entity_type,entity_id,before_data,after_data,metadata,created_at")
+      .eq("tenant_id", context.tenantId)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .limit(parsed.data.limit);
+
+    if (parsed.data.before) query = query.lt("created_at", parsed.data.before);
+    if (parsed.data.entityType) query = query.eq("entity_type", parsed.data.entityType);
+
+    const { data, error } = await query;
+    if (error) {
+      request.log.error({ err: error, tenantId: context.tenantId }, "Audit query failed");
+      return reply.code(500).send({
+        success: false,
+        error: { code: "AUDIT_QUERY_FAILED", message: "Unable to retrieve audit events", details: [] },
+        meta: { requestId: request.id, timestamp: new Date().toISOString() }
+      });
+    }
+
+    return {
+      success: true,
+      data: data ?? [],
+      meta: {
+        requestId: request.id,
+        timestamp: new Date().toISOString(),
+        version: "v1",
+        limit: parsed.data.limit,
+        nextBefore: data?.length ? data[data.length - 1]?.created_at ?? null : null
+      }
+    };
   });
 
   app.get("/api/v1/tenants/me", async (request) => {
