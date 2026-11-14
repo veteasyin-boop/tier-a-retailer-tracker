@@ -441,3 +441,36 @@ test("accepts the case-insensitive HTTP Bearer authentication scheme", async () 
     assert.equal(response.json().data.tenantId, tenantId);
   });
 });
+
+
+test("organization metadata routes reject tree filters instead of silently ignoring them", async () => {
+  await withApp({}, async (app, calls) => {
+    for (const url of [
+      "/api/v1/organization/unit-types?rootsOnly=true",
+      "/api/v1/organization/designations?parentId=a2000000-0000-4000-8000-000000000001"
+    ]) {
+      const response = await app.inject({ method: "GET", url, headers: authHeaders });
+      assert.equal(response.statusCode, 400, url);
+      assert.equal(response.json().error.code, "INVALID_QUERY", url);
+    }
+
+    assert.equal(calls.some((call) => (
+      call.table === "org_unit_types" || call.table === "designations"
+    )), false, "invalid filters must be rejected before database queries");
+  });
+});
+
+test("organizational unit route applies the rootsOnly filter", async () => {
+  await withApp({}, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/organization/units?rootsOnly=true",
+      headers: authHeaders
+    });
+
+    assert.equal(response.statusCode, 200);
+    const query = calls.find((call) => call.table === "org_units");
+    assert.ok(query);
+    assert.equal(query.filters.parent_id, null);
+  });
+});
