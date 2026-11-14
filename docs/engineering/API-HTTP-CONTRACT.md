@@ -93,10 +93,10 @@ All three endpoints require `organization.read` and return tenant-wide organizat
 | `limit` | 50 | Integer 1–100 |
 | `offset` | 0 | Integer 0–10000 |
 | `includeInactive` | `false` | String `true` or `false` |
-| `parentId` | — | UUID; applies to organizational units |
-| `rootsOnly` | `false` | String `true` or `false`; applies to organizational units |
+| `parentId` | — | UUID; organizational units endpoint only |
+| `rootsOnly` | `false` | String `true` or `false`; organizational units endpoint only |
 
-`parentId` and `rootsOnly=true` cannot be used together. Unknown query parameters are rejected. `parentId` and `rootsOnly` are accepted by the shared schema on all three endpoints, but only the units endpoint applies them.
+All three endpoints accept `limit`, `offset`, and `includeInactive`. Only `GET /organization/units` accepts `parentId` and `rootsOnly`; sending either parameter to the unit-types or designations endpoint is rejected. `parentId` and `rootsOnly=true` cannot be used together. Unknown query parameters are rejected.
 
 **Success — 200**
 
