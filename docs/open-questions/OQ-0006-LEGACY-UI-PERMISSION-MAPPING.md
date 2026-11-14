@@ -57,3 +57,10 @@ Do not assign the broad legacy `STATE_HEAD` grants to a tenant membership until 
 ## Blocking status
 
 **Blocking before the existing browser UI is enabled for tenant memberships or connected to tenant operational data.** No generic manager role or blanket authenticated-user access may be introduced as a shortcut.
+
+
+## Interim implementation (2026-11-15)
+
+A tenant capability catalogue now maps known application capabilities to explicit permission codes in `src/services/tenantCapabilities.js`. The auth service exposes `canCapability()`, and the tenant identity screen displays the capabilities derived from the API-returned permission list. Tests verify fail-closed behavior for missing context, unknown capabilities, and tenant role labels without grants.
+
+This does **not** authorize the existing field/admin UI. The old views still contain broad `isAdmin` and local representative checks and still read legacy operational tables directly. Production tenant mode does not load those views. The complete per-action mapping, server-side scope rules, and API guards must be finished domain by domain before any old view is enabled for tenant memberships. OQ-0006 remains blocking for operational UI cutover.
