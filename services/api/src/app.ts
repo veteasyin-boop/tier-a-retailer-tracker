@@ -1,5 +1,7 @@
 import Fastify, { type FastifyInstance, type FastifyRequest } from "fastify";
 import rateLimit from "@fastify/rate-limit";
+import cors from "@fastify/cors";
+import { randomUUID } from "node:crypto";
 import type { AppConfig } from "./config.js";
 import type { SupabaseClients } from "./platform/supabase.js";
 import { parseTenantId, resolveTenantContext, TenantContextError, type TenantContext } from "./modules/identity/tenant-context.js";
@@ -17,10 +19,11 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     logger: config.nodeEnv !== "test",
     trustProxy: false,
     bodyLimit: 1024 * 1024,
-    genReqId: () => crypto.randomUUID()
+    genReqId: () => randomUUID()
   });
 
   app.decorateRequest("tenantContext", null);
+  await app.register(cors, { origin: config.corsOrigins, credentials: false });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
 
   app.setErrorHandler((error, request, reply) => {
