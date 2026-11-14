@@ -375,6 +375,12 @@ as $$
   select
     private.has_tenant_permission(p_tenant_id, 'membership.manage')
     and private.has_tenant_permission(p_tenant_id, 'role.manage')
+    and exists (
+      select 1 from public.tenant_roles target_role
+      where target_role.tenant_id = p_tenant_id
+        and target_role.id = p_role_id
+        and target_role.is_active
+    )
     and not exists (
       select 1
       from public.tenant_role_permissions target_permission
@@ -606,8 +612,14 @@ using (private.has_tenant_permission(tenant_id, 'role.manage'));
 drop policy if exists tenant_roles_manage on public.tenant_roles;
 create policy tenant_roles_manage
 on public.tenant_roles for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'role.manage'))
-with check (private.has_tenant_permission(tenant_id, 'role.manage'));
+using (
+  not is_system
+  and private.has_tenant_permission(tenant_id, 'role.manage')
+)
+with check (
+  not is_system
+  and private.has_tenant_permission(tenant_id, 'role.manage')
+);
 
 drop policy if exists tenant_role_permissions_read on public.tenant_role_permissions;
 create policy tenant_role_permissions_read
@@ -621,6 +633,12 @@ on public.tenant_role_permissions for insert to authenticated
 with check (
   private.has_tenant_permission(tenant_id, 'role.manage')
   and private.has_tenant_permission(tenant_id, permission_code)
+  and exists (
+    select 1 from public.tenant_roles r
+    where r.tenant_id = tenant_role_permissions.tenant_id
+      and r.id = tenant_role_permissions.role_id
+      and not r.is_system
+  )
 );
 drop policy if exists tenant_role_permissions_delete on public.tenant_role_permissions;
 create policy tenant_role_permissions_delete
