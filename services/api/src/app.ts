@@ -59,7 +59,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     if (request.routeOptions.url === "/health") return;
 
     const authorization = request.headers.authorization;
-    const bearerMatch = authorization?.trim().match(/^Bearer\\s+(\\S+)$/i);
+    const bearerMatch = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
     if (!bearerMatch) {
       return reply.code(401).send({
         success: false,
