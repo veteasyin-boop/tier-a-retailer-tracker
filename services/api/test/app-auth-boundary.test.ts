@@ -424,3 +424,20 @@ test("audit route denies members without audit.read", async () => {
     assert.equal(calls.some((call) => call.table === "growta_audit_events"), false);
   });
 });
+
+
+test("accepts the case-insensitive HTTP Bearer authentication scheme", async () => {
+  await withApp({}, async (app) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/tenants/me",
+      headers: {
+        authorization: "bearer valid-test-token",
+        "x-tenant-id": tenantId
+      }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.tenantId, tenantId);
+  });
+});
