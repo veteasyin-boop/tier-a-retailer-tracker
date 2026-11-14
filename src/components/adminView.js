@@ -501,10 +501,7 @@ function renderLeaderboardTab(data) {
               <div style="font-size: 11.5px; color: var(--muted); margin-bottom: 8px;">
                 Blocks: <strong>${escapeHtml((a.blocks || []).join(', ') || 'All District')}</strong>
               </div>
-              <div style="font-size: 11.5px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; background: var(--surface-alt); padding: 4px 8px; border-radius: var(--radius-xs);">
-                <span style="color: var(--muted); font-weight: 600;">🔑 Rep Password:</span>
-                <code style="font-weight: 700; color: var(--primary);">${escapeHtml(a.password || 'rep123')}</code>
-              </div>
+              <div style="font-size:11px; color:var(--muted); margin-bottom:8px;">Sign-in credentials are managed separately from representative records.</div>
               <div class="progress-container" style="height: 6px; margin-bottom: 6px;">
                 <div class="progress-fill" style="width: ${Math.min(pct, 100)}%;"></div>
               </div>
@@ -3300,22 +3297,6 @@ function bindAdminEvents(container) {
 
   document.getElementById('btnAdminLogout')?.addEventListener('click', performAdminLogout);
   document.getElementById('btnAdminLock')?.addEventListener('click', performAdminLogout);
-
-  // Change PIN
-  document.getElementById('btnAdminChangePin')?.addEventListener('click', () => {
-    const currentPin = prompt('Enter your current Manager PIN:');
-    if (!auth.verifyManagerPin(currentPin)) {
-      alert('Incorrect current PIN.');
-      return;
-    }
-    const newPin = prompt('Enter new 4-digit Manager PIN:');
-    if (newPin && newPin.trim().length >= 4) {
-      auth.setManagerPin(newPin.trim());
-      showToast('Manager PIN updated successfully!', '🔑');
-    } else {
-      alert('PIN must be at least 4 digits.');
-    }
-  });
 
   // Supervisory Actions on Leaderboard Tab
   document.getElementById('btnAdminLogMeeting')?.addEventListener('click', () => {
