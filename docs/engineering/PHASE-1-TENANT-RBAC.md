@@ -117,3 +117,18 @@ The product owner confirmed that the existing email/password sign-in method is t
 The API now provides authenticated `GET /api/v1/tenants` for membership discovery before tenant selection. The route is covered by tests for bearer-token enforcement, no tenant-header requirement, filtering by authenticated user, active membership, and active tenant. This endpoint does not provision accounts or memberships. The legacy browser login UI and direct-Supabase operational data plane have not been cut over; they remain isolated to the existing controlled prototype until the identity mapping, invitation/reset workflow, offline queue ownership, and operational API paths are complete.
 
 See `docs/adr/ADR-0003-supabase-auth-email-password.md`, OQ-0004, OQ-0005, and OQ-0006. The current UI still uses a legacy `isAdmin` boolean and locally selected representative identity; OQ-0006 blocks connecting that UI to tenant memberships until every action is mapped to tenant-defined permissions.
+
+
+## Tenant authentication UI and offline queue containment (2026-11-15)
+
+The default production entry point now renders a Supabase email/password sign-in and tenant-selection shell. It restores Auth sessions, requests active tenant memberships from `GET /api/v1/tenants`, validates the selected tenant through `GET /api/v1/tenants/me`, supports Supabase password recovery, and provides sign-out and workspace switching. The tenant context UI displays only server-returned roles, permissions, org placement, scopes, and mapped capabilities.
+
+The legacy prototype shell is available only in Vite development builds with `VITE_ENABLE_LEGACY_PROTOTYPE=true`; production builds ignore this flag. The production path does not initialize legacy storage, render field/admin views, or invoke direct browser operational-table access. Default representative passwords were removed from static assistant data and new assistant records; password display and local PIN-change controls were removed. The legacy prototype is preserved in source for controlled development, not for production tenant access.
+
+Tenant capability mapping is centralized in `src/services/tenantCapabilities.js`. It maps known application capabilities to explicit permission codes and fails closed for unknown capabilities or absent context. This is not yet a full per-action replacement of every legacy `isAdmin` check; the legacy operational UI remains inaccessible in tenant mode until its domain APIs and scope guards are migrated.
+
+IndexedDB schema version 2 adds operation UUID, payload version, actor user ID, and tenant ID fields without deleting old queue rows. Unbound legacy queue records are quarantined, account/tenant mismatches are paused, and matching records remain held until a transactional tenant write API is available. Direct browser-to-table queue writes have been removed. The tenant sign-in UI allows the user to export preserved offline operations locally.
+
+Root CI now runs `npm run build` and `npm run test:security` in addition to API type-checking and unit tests. See `docs/engineering/TENANT-AUTH-ROLLOUT.md` for required environment configuration and rollout steps.
+
+**Remaining blockers:** no self-registration/invitation or tenant owner bootstrap; no verified legacy representative-to-Auth mapping; no operational tenant-scoped API reads/writes; no server-side idempotency ledger or transactional write/audit flow; and no approved per-domain scope/conflict policy. Do not onboard operational tenants or enable automatic sync until these are resolved.
