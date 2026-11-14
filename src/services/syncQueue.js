@@ -1,7 +1,6 @@
 import { idbStorage } from './idbStorage.js';
 import { auth } from './auth.js';
 
-const SYNC_INTERVAL_MS = 20000;
 const PERMANENT_DATABASE_CODES = new Set(['PGRST204', '23503', '42P01']);
 
 export function getQueueDisposition(item, identity) {
@@ -77,9 +76,7 @@ class SyncQueueService {
   }
 
   start() {
-    if (this.intervalId) return;
     this.processQueue();
-    this.intervalId = setInterval(() => this.processQueue(), SYNC_INTERVAL_MS);
   }
 
   stop() {
