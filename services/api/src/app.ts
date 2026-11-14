@@ -28,13 +28,16 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
 
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error, requestId: request.id }, "Request failed");
-    const statusCode = error.statusCode && error.statusCode >= 400 && error.statusCode < 600
-      ? error.statusCode : 500;
+    const candidateStatus = typeof error === "object" && error !== null && "statusCode" in error
+      ? (error as { statusCode?: unknown }).statusCode : undefined;
+    const statusCode = typeof candidateStatus === "number" && candidateStatus >= 400 && candidateStatus < 600
+      ? candidateStatus : 500;
+    const errorMessage = error instanceof Error ? error.message : "Request failed";
     return reply.code(statusCode).send({
       success: false,
       error: {
         code: statusCode === 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED",
-        message: statusCode === 500 ? "An unexpected error occurred" : error.message,
+        message: statusCode === 500 ? "An unexpected error occurred" : errorMessage,
         details: []
       },
       meta: { requestId: request.id, timestamp: new Date().toISOString() }
