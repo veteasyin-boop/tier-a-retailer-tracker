@@ -643,7 +643,15 @@ with check (
 drop policy if exists tenant_role_permissions_delete on public.tenant_role_permissions;
 create policy tenant_role_permissions_delete
 on public.tenant_role_permissions for delete to authenticated
-using (private.has_tenant_permission(tenant_id, 'role.manage'));
+using (
+  private.has_tenant_permission(tenant_id, 'role.manage')
+  and exists (
+    select 1 from public.tenant_roles r
+    where r.tenant_id = tenant_role_permissions.tenant_id
+      and r.id = tenant_role_permissions.role_id
+      and not r.is_system
+  )
+);
 
 drop policy if exists tenant_membership_roles_read on public.tenant_membership_roles;
 create policy tenant_membership_roles_read
