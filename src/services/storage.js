@@ -12,6 +12,12 @@ import { auditLogger, AUDIT_ACTIONS } from '../../packages/audit/auditLogger.js'
 const STORAGE_KEY = 'tier_a_retailers_bihar_v3';
 const ASSISTANTS_KEY = 'tier_a_assistants_config_v1';
 
+function sanitizeAssistantRecord(record) {
+  if (!record || typeof record !== 'object') return {};
+  const { password, ...safeRecord } = record;
+  return safeRecord;
+}
+
 class StorageService {
   // Returns today's date string in IST (India Standard Time, UTC+5:30)
   // MUST be used instead of new Date().toISOString() for all attendance date stamps
@@ -298,7 +304,6 @@ class StorageService {
           district: newRec.district,
           target: newRec.target || 50,
           blocks: newRec.blocks || [],
-          password: typeof newRec.password === 'string' ? newRec.password : ''
         };
         const idx = this.assistants.findIndex(a => a.name === mappedAsst.name);
         if (idx >= 0) {
@@ -502,7 +507,8 @@ class StorageService {
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          this.assistants = parsed;
+          this.assistants = parsed.map(sanitizeAssistantRecord);
+          this.saveAssistantsToLocal();
           return this.assistants;
         }
       }
@@ -517,6 +523,7 @@ class StorageService {
 
   saveAssistantsToLocal() {
     try {
+      this.assistants = (this.assistants || []).map(sanitizeAssistantRecord);
       localStorage.setItem(ASSISTANTS_KEY, JSON.stringify(this.assistants));
     } catch(e) {
       console.error("Assistants config save error:", e);
@@ -535,16 +542,17 @@ class StorageService {
       throw new Error('Permission denied: Only Admin / Manager can update assistant names and territories.');
     }
 
+    const safeAssistantData = sanitizeAssistantRecord(assistantData);
     const list = this.getAssistants();
-    const idx = list.findIndex(a => a.name === (oldName || assistantData.name));
+    const idx = list.findIndex(a => a.name === (oldName || safeAssistantData.name));
 
     if (idx >= 0) {
       list[idx] = {
         ...list[idx],
-        ...assistantData
+        ...safeAssistantData
       };
     } else {
-      list.push(assistantData);
+      list.push(safeAssistantData);
     }
 
     // Cascade name update across all retailer records if name changed
@@ -560,7 +568,7 @@ class StorageService {
 
       // Update active session rep if it was the old name
       if (auth.getAssignedRep() === oldName) {
-        auth.setAssignedRep(assistantData.name);
+        auth.setAssignedRep(safeAssistantData.name);
       }
 
       this.saveToLocal();
@@ -570,9 +578,9 @@ class StorageService {
     this.saveAssistantsToLocal();
     this.triggerChange();
     if (supabaseService.isReady) {
-      supabaseService.saveAssistant(assistantData).catch(e => console.warn('Supabase saveAssistant warning:', e));
+      supabaseService.saveAssistant(safeAssistantData).catch(e => console.warn('Supabase saveAssistant warning:', e));
     }
-    return assistantData;
+    return safeAssistantData;
   }
 
   async addAssistant(newAssistant) {
@@ -580,18 +588,19 @@ class StorageService {
       throw new Error('Permission denied: Only Admin / Manager can add assistants.');
     }
 
+    const safeAssistant = sanitizeAssistantRecord(newAssistant);
     const list = this.getAssistants();
-    if (list.some(a => a.name.toLowerCase() === newAssistant.name.toLowerCase())) {
+    if (list.some(a => a.name.toLowerCase() === safeAssistant.name.toLowerCase())) {
       throw new Error(`An assistant named "${newAssistant.name}" already exists.`);
     }
 
-    list.push(newAssistant);
+    list.push(safeAssistant);
     this.saveAssistantsToLocal();
     this.triggerChange();
     if (supabaseService.isReady) {
-      supabaseService.saveAssistant(newAssistant).catch(e => console.warn('Supabase addAssistant warning:', e));
+      supabaseService.saveAssistant(safeAssistant).catch(e => console.warn('Supabase addAssistant warning:', e));
     }
-    return newAssistant;
+    return safeAssistant;
   }
 
   async deleteAssistant(name, transferTo = '') {
