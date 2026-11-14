@@ -14,7 +14,7 @@ The approved technology baseline permits a Fastify or FastAPI service layer. The
 
 Build the first backend as a **TypeScript + Fastify modular monolith** under `services/api`.
 
-- Use the existing Node.js 20+ runtime baseline.
+- Use the existing Node.js 22+ runtime baseline.
 - Keep the Vite prototype intact; do not rewrite or relocate it as part of API foundation work.
 - Keep Supabase PostgreSQL as the system of record and Supabase Auth as the identity provider.
 - Keep domain modules in one deployable API process initially.
