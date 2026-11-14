@@ -60,3 +60,15 @@ Suggested operation envelope (proposal, not approved contract):
 ## Blocking status
 
 **Blocking before any operational write endpoint or multi-tenant offline synchronization is enabled.** The current direct-to-Supabase sync path must not be assumed to provide tenant identity, idempotency, or safe rejected-operation recovery.
+
+
+## Interim containment implemented on the development branch (2026-11-15)
+
+- IndexedDB schema version 2 adds `operationId`, `payloadVersion`, `actorUserId`, and `tenantId` metadata without deleting or rewriting existing queue rows.
+- New operations receive a stable client UUID and capture the current verified Auth user and selected tenant, when available.
+- Existing rows without those identity fields are marked `identity_required`; they are never rebound to whichever account signs in later.
+- Bound rows pause while signed out, become `identity_mismatch` when a different user or tenant is active, and remain `awaiting_api_migration` for the matching identity until transactional API writes exist.
+- The queue no longer performs direct browser-to-table writes. Schema-cache, missing-table, and foreign-key errors are classified as `needs_attention`, never as successful uploads.
+- The tenant sign-in screens expose an explicit local JSON export of preserved queue records, including before tenant selection.
+
+The server-side idempotency ledger and transactional mutation/audit RPC are **not implemented**. The queue is intentionally held rather than pretending to sync. OQ-0005 remains blocking before operational writes or multi-tenant offline synchronization.
