@@ -402,7 +402,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $scope$
   with actor_scopes as (
     select s.scope_type, s.org_unit_id
     from public.tenant_memberships actor
@@ -447,7 +447,7 @@ as $
           )
         )
     );
-$;
+$scope$;
 
 revoke all on function private.can_assign_membership_scope(uuid, uuid, text, uuid) from public, anon;
 grant execute on function private.can_assign_membership_scope(uuid, uuid, text, uuid) to authenticated;
