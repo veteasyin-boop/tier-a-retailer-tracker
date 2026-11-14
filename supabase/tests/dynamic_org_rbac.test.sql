@@ -3,7 +3,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(12);
+SELECT plan(13);
 
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a2000000-0000-4000-8000-000000000001', 'Org Test Tenant A', 'org-test-a', 'Test', true),
@@ -40,6 +40,15 @@ INSERT INTO public.membership_org_unit_scopes (tenant_id, membership_id, org_uni
 
 INSERT INTO public.membership_reporting_relationships (tenant_id, membership_id, reports_to_membership_id, relationship_type) VALUES
   ('a2000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000001', 'd2000000-0000-4000-8000-000000000002', 'primary');
+
+SELECT is(
+  (SELECT count(*)::int FROM public.resolve_membership_org_unit_scope(
+    'a2000000-0000-4000-8000-000000000001',
+    'd2000000-0000-4000-8000-000000000001'
+  )),
+  2,
+  'scope resolver includes explicitly assigned unit and descendants'
+);
 
 SELECT ok((
   SELECT bool_and(c.relrowsecurity)
