@@ -1,5 +1,4 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { resolveScopeUnitIds } from "../authorization/scope-resolver.js";
 
 export class TenantContextError extends Error {
   constructor(
@@ -81,17 +80,17 @@ export async function resolveTenantContext(
       .map((row) => row.permission_code as string))];
   }
 
-  const [placementResult, assignmentsResult, unitsResult] = await Promise.all([
+  const [placementResult, scopesResult] = await Promise.all([
     admin.from("membership_org_assignments")
       .select("org_unit_id,designation_id,org_units(id,code,name,parent_id),designations(id,code,name)")
       .eq("tenant_id", tenantId).eq("membership_id", membershipId).maybeSingle(),
-    admin.from("membership_org_unit_scopes")
-      .select("org_unit_id,include_descendants")
-      .eq("tenant_id", tenantId).eq("membership_id", membershipId),
-    admin.from("org_units").select("id,parent_id").eq("tenant_id", tenantId).eq("is_active", true)
+    admin.rpc("resolve_membership_org_unit_scope", {
+      p_tenant_id: tenantId,
+      p_membership_id: membershipId
+    })
   ]);
 
-  if (placementResult.error || assignmentsResult.error || unitsResult.error) {
+  if (placementResult.error || scopesResult.error) {
     throw new TenantContextError(500, "ORG_CONTEXT_LOOKUP_FAILED", "Unable to resolve organizational context");
   }
 
@@ -100,10 +99,9 @@ export async function resolveTenantContext(
     designations?: { id: string; code: string; name: string } | null;
   } | null;
 
-  const scopedOrgUnitIds = resolveScopeUnitIds(
-    (assignmentsResult.data ?? []) as { org_unit_id: string; include_descendants: boolean }[],
-    (unitsResult.data ?? []) as { id: string; parent_id: string | null }[]
-  );
+  const scopedOrgUnitIds = [...new Set(
+    (scopesResult.data ?? []).map((row) => row.org_unit_id as string)
+  )].sort();
 
   return {
     tenantId,
