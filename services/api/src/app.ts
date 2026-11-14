@@ -9,6 +9,7 @@ import { organizationRoutes } from "./modules/organization/organization.routes.j
 import { auditRoutes } from "./modules/audit/audit.routes.js";
 import { tenantRoutes } from "./modules/identity/tenant.routes.js";
 import { membershipRoutes } from "./modules/memberships/membership.routes.js";
+import { roleRoutes } from "./modules/roles/role.routes.js";
 
 type Dependencies = { config: AppConfig; supabase: SupabaseClients };
 
@@ -109,6 +110,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   await app.register(auditRoutes, { prefix: "/api/v1", supabase });
   await app.register(tenantRoutes, { prefix: "/api/v1", supabase });
   await app.register(membershipRoutes, { prefix: "/api/v1", supabase });
+  await app.register(roleRoutes, { prefix: "/api/v1", supabase });
 
   return app;
 }
