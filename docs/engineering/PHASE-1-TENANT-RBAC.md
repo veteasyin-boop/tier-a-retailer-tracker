@@ -79,3 +79,12 @@ The API request boundary validates the Supabase bearer token, active tenant, and
 The database CI runs a fixture-backed PostgREST integration test against five local audit rows sharing one timestamp. It verifies the composite cursor's UUID tie-break ordering across three pages, with no duplicate or skipped records. The test creates its Auth user and audit rows only against the disposable local Supabase instance and refuses non-local URLs.
 
 No tenant provisioning, invitation, owner bootstrap/transfer, role mutation, organization mutation, or operational business-data endpoints are implemented. These remain blocked by unresolved provisioning/delegation decisions and the need for explicit per-domain scope contracts. No production database has been linked or migrated.
+
+## Additional security and API hardening
+
+- Organization metadata endpoints now use endpoint-specific query schemas. Tree filters are accepted only by the organizational-units endpoint; unsupported filters are rejected rather than silently ignored.
+- The HTTP Bearer authentication scheme is parsed case-insensitively, as required by HTTP authentication scheme semantics.
+- API regression tests verify authentication on every extracted route, audit permission enforcement, exact tenant selection, tenant predicates on identity/RBAC/organization/audit queries, and organizational tree-filter behavior.
+- **Service-role boundary:** API data queries currently use the Supabase `service_role` client, which bypasses RLS. Explicit tenant predicates and server-side membership/permission checks are therefore the effective API isolation boundary. RLS protects browser/non-service-role access paths, not these API queries. See `docs/open-questions/OQ-0003-API-SERVICE-ROLE-RLS-BOUNDARY.md`.
+- Legacy role grants are not changed. `docs/open-questions/OQ-0002-LEGACY-STATE-HEAD-PERMISSIONS.md` records the broad `STATE_HEAD` grant and the unassigned `TERRITORY_MANAGER` seed role; `supabase/diagnostics/legacy-role-permission-audit.sql` provides a read-only grant inventory.
+- OQ-0001 remains blocking for tenant provisioning, owner bootstrap/transfer, invitations, and role delegation. OQ-0002 blocks assigning unreviewed legacy roles. OQ-0003 blocks adding tenant operational-data APIs until the database authorization context is approved.
