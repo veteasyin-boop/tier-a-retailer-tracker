@@ -70,7 +70,8 @@ The pgTAP suite creates two isolated tenants and Auth users in a transaction. It
 ## API foundation verification
 
 The development branch currently exposes the following authenticated read surface:
-- `GET /api/v1/tenants/me` — active tenant membership context.
+- `GET /api/v1/tenants` — authenticated discovery of active tenant memberships before tenant selection; no tenant header is accepted.
+- `GET /api/v1/tenants/me` — active tenant membership context after tenant selection.
 - `GET /api/v1/organization/unit-types`, `/units`, and `/designations` — tenant-wide organization metadata protected by `organization.read`.
 - `GET /api/v1/audit-events` — tenant-filtered audit history protected by `audit.read`, with bounded filters and composite keyset pagination.
 
@@ -107,3 +108,12 @@ The target is to migrate legacy operations behind authenticated API routes while
 - `docs/open-questions/OQ-0004-LEGACY-BROWSER-TENANT-ISOLATION.md`
 
 OQ-0004 blocks multi-tenant onboarding against the legacy browser data plane. OQ-0001 through OQ-0004 remain open; no production policy, credential, or database changes were made.
+
+
+## Email/password authentication decision (2026-11-15)
+
+The product owner confirmed that the existing email/password sign-in method is to be retained. ADR-0003 records the target: individual Supabase Auth accounts, post-login tenant discovery, server-verified tenant membership, and tenant-defined permissions. Legacy manager PINs, plaintext representative passwords, email-substring role inference, and user-editable metadata are not trusted authorization sources. Legacy credentials are to be reconciled to verified identities and reset through Supabase Auth rather than copied into the new identity system.
+
+The API now provides authenticated `GET /api/v1/tenants` for membership discovery before tenant selection. The route is covered by tests for bearer-token enforcement, no tenant-header requirement, filtering by authenticated user, active membership, and active tenant. This endpoint does not provision accounts or memberships. The legacy browser login UI and direct-Supabase operational data plane have not been cut over; they remain isolated to the existing controlled prototype until the identity mapping, invitation/reset workflow, offline queue ownership, and operational API paths are complete.
+
+See `docs/adr/ADR-0003-supabase-auth-email-password.md`, OQ-0004, and OQ-0005.
