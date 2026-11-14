@@ -46,12 +46,10 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: services/api/package-lock.json
 
       - name: Install API dependencies
         working-directory: services/api
-        run: npm ci --no-audit --no-fund
+        run: npm install --no-audit --no-fund
 
       - name: Verify audit keyset filter against local PostgREST
         working-directory: services/api
