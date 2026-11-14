@@ -403,7 +403,6 @@ class SupabaseService {
       district: asst.district,
       target: asst.target,
       blocks: asst.blocks || [],
-      password: asst.password || 'rep123',
       updated_at: new Date().toISOString()
     });
     if (error) throw error;
