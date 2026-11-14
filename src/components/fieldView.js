@@ -220,9 +220,9 @@ function renderRepLoginScreen(container) {
 
         <div class="form-group">
           <label class="form-label">Station Password *</label>
-          <input type="password" id="repLoginPassword" required value="rep123" placeholder="Enter assigned password (e.g. rep123)" style="padding: 10px 12px; font-size: 14px;">
+          <input type="password" id="repLoginPassword" required placeholder="Enter your assigned password" style="padding: 10px 12px; font-size: 14px;">
           <span style="font-size: 11.5px; color: var(--muted); margin-top: 4px;">
-            🔒 Default Password: <code>rep123</code> (Pre-filled for convenience)
+            🔒 Use the individual credential issued to you.
           </span>
         </div>
 
