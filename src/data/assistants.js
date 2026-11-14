@@ -6,7 +6,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 116,
     blocks: ["Bihta", "Maner", "Bikram", "Naubatpur", "Danapur"],
     color: "#16a34a",
-    password: "rep123"
   },
   { 
     name: "Assistant 2 (Central/South Patna)", 
@@ -15,7 +14,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 103,
     blocks: ["Phulwari Sharif", "Masaurhi", "Punpun", "Dhanarua", "Sampatchak"],
     color: "#0284c7",
-    password: "rep123"
   },
   { 
     name: "Assistant 3 (East Patna)", 
@@ -24,7 +22,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 80,
     blocks: ["Bakhtiarpur", "Barh", "Mokama", "Fatuha", "Daniyawan", "Pandarak"],
     color: "#9333ea",
-    password: "rep123"
   },
   { 
     name: "Assistant 4 (West Vaishali)", 
@@ -33,7 +30,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 99,
     blocks: ["Hajipur", "Lalganj", "Vaishali", "Bhagwanpur", "Garaul"],
     color: "#d97706",
-    password: "rep123"
   },
   { 
     name: "Assistant 5 (East Vaishali)", 
@@ -42,7 +38,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 79,
     blocks: ["Mahua", "Jandaha", "Patepur", "Bidupur", "Desri", "Rajapakar"],
     color: "#0d9488",
-    password: "rep123"
   },
   { 
     name: "Assistant 6 (Rohtas)", 
@@ -51,7 +46,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 66,
     blocks: ["Sasaram", "Dehri", "Nokha", "Karakat", "Bikramganj", "Sheosagar"],
     color: "#ea580c",
-    password: "rep123"
   },
   { 
     name: "Assistant 7 (Kaimur)", 
@@ -60,7 +54,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 7,
     blocks: ["Bhabua", "Mohania", "Kudra", "Chainpur"],
     color: "#dc2626",
-    password: "rep123"
   },
   { 
     name: "Assistant 8 (Bhojpur & Buxar)", 
@@ -69,7 +62,6 @@ export const DEFAULT_ASSISTANTS = [
     target: 23,
     blocks: ["Behea", "Jagdishpur", "Arrah", "Buxar", "Dumraon"],
     color: "#4f46e5",
-    password: "rep123"
   },
 ];
 
