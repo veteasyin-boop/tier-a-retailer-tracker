@@ -1,15 +1,13 @@
 import type { FastifyPluginAsync } from "fastify";
 import type { SupabaseClients } from "../../platform/supabase.js";
 import { organizationListQuerySchema } from "./organization.schemas.js";
+import { permissionPreHandler } from "../authorization/require-permission.js";
 
 type RouteOptions = { supabase: SupabaseClients };
 
 export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, { supabase }) => {
   app.get("/unit-types", {
-    preHandler: async (request) => {
-      const { requirePermission } = await import("../authorization/require-permission.js");
-      requirePermission(request.tenantContext, "organization.read");
-    }
+    preHandler: permissionPreHandler("organization.read")
   }, async (request, reply) => {
     const parsed = organizationListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -37,10 +35,7 @@ export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, 
   });
 
   app.get("/units", {
-    preHandler: async (request) => {
-      const { requirePermission } = await import("../authorization/require-permission.js");
-      requirePermission(request.tenantContext, "organization.read");
-    }
+    preHandler: permissionPreHandler("organization.read")
   }, async (request, reply) => {
     const parsed = organizationListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
@@ -69,10 +64,7 @@ export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, 
   });
 
   app.get("/designations", {
-    preHandler: async (request) => {
-      const { requirePermission } = await import("../authorization/require-permission.js");
-      requirePermission(request.tenantContext, "organization.read");
-    }
+    preHandler: permissionPreHandler("organization.read")
   }, async (request, reply) => {
     const parsed = organizationListQuerySchema.safeParse(request.query);
     if (!parsed.success) {
