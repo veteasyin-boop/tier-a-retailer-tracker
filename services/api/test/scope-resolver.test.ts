@@ -10,7 +10,6 @@ test("expands descendants only when explicitly requested", () => {
     { id: "sibling", parent_id: "root" },
     { id: "other-root", parent_id: null }
   ];
-
   assert.deepEqual(
     resolveScopeUnitIds([{ org_unit_id: "child", include_descendants: true }], units),
     ["child", "grandchild"]
@@ -18,9 +17,10 @@ test("expands descendants only when explicitly requested", () => {
 });
 
 test("does not infer access from primary placement or unknown scope ids", () => {
-  const units = [{ id: "root", parent_id: null }];
   assert.deepEqual(
-    resolveScopeUnitIds([{ org_unit_id: "missing", include_descendants: true }], units),
+    resolveScopeUnitIds([{ org_unit_id: "missing", include_descendants: true }], [
+      { id: "root", parent_id: null }
+    ]),
     []
   );
 });
@@ -39,8 +39,22 @@ test("deduplicates overlapping scopes", () => {
   );
 });
 
+test("expands descendants when an earlier direct scope did not request expansion", () => {
+  const units = [
+    { id: "root", parent_id: null },
+    { id: "child", parent_id: "root" },
+    { id: "grandchild", parent_id: "child" }
+  ];
+  assert.deepEqual(
+    resolveScopeUnitIds([
+      { org_unit_id: "child", include_descendants: false },
+      { org_unit_id: "root", include_descendants: true }
+    ], units),
+    ["child", "grandchild", "root"]
+  );
+});
 
-test("expands a wide hierarchy without repeated front-of-array removal", () => {
+test("expands a wide hierarchy in linear traversal time", () => {
   const units = [
     { id: "root", parent_id: null },
     ...Array.from({ length: 2000 }, (_, index) => ({

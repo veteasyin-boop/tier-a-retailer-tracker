@@ -10,7 +10,11 @@ export type AssignedOrgScope = {
 
 /**
  * Expands only explicitly assigned org-unit scopes.
- * The primary organizational placement is deliberately not treated as an access grant.
+ * Primary organizational placement is descriptive and is never an access grant.
+ *
+ * The expansion-visited set is deliberately separate from the resolved set:
+ * an explicitly scoped child can later be reached through an ancestor scope
+ * that includes descendants, in which case its descendants must also expand.
  */
 export function resolveScopeUnitIds(
   assignments: AssignedOrgScope[],
@@ -27,18 +31,25 @@ export function resolveScopeUnitIds(
   }
 
   const resolved = new Set<string>();
+  const expanded = new Set<string>();
+
   for (const assignment of assignments) {
     if (!knownIds.has(assignment.org_unit_id)) continue;
     resolved.add(assignment.org_unit_id);
-    if (!assignment.include_descendants) continue;
+    if (!assignment.include_descendants || expanded.has(assignment.org_unit_id)) continue;
 
-    const queue = [...(childrenByParent.get(assignment.org_unit_id) ?? [])];
-    // A cursor avoids Array.shift()'s repeated re-indexing on wide org trees.
+    const queue = [assignment.org_unit_id];
+    expanded.add(assignment.org_unit_id);
     for (let cursor = 0; cursor < queue.length; cursor += 1) {
-      const next = queue[cursor];
-      if (!next || resolved.has(next)) continue;
-      resolved.add(next);
-      queue.push(...(childrenByParent.get(next) ?? []));
+      const current = queue[cursor];
+      if (!current) continue;
+
+      for (const childId of childrenByParent.get(current) ?? []) {
+        resolved.add(childId);
+        if (expanded.has(childId)) continue;
+        expanded.add(childId);
+        queue.push(childId);
+      }
     }
   }
 
