@@ -10,6 +10,7 @@ import { auditRoutes } from "./modules/audit/audit.routes.js";
 import { tenantRoutes } from "./modules/identity/tenant.routes.js";
 import { membershipRoutes } from "./modules/memberships/membership.routes.js";
 import { roleRoutes } from "./modules/roles/role.routes.js";
+import { roleUpdateRoutes } from "./modules/roles/role-update.routes.js";
 
 type Dependencies = { config: AppConfig; supabase: SupabaseClients };
 
@@ -20,12 +21,10 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     bodyLimit: 1024 * 1024,
     genReqId: () => randomUUID()
   });
-
   app.decorateRequest("authUser", null);
   app.decorateRequest("tenantContext", null);
   await app.register(cors, { origin: config.corsOrigins, credentials: false });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
-
   app.setErrorHandler((error, request, reply) => {
     request.log.error({ err: error, requestId: request.id }, "Request failed");
     const candidateStatus = typeof error === "object" && error !== null && "statusCode" in error
@@ -38,79 +37,49 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       ? (error as { code: string }).code
       : statusCode === 500 ? "INTERNAL_ERROR" : "REQUEST_FAILED";
     return reply.code(statusCode).send({
-      success: false,
-      error: {
-        code: errorCode,
-        message: statusCode === 500 ? "An unexpected error occurred" : errorMessage,
-        details: []
-      },
+      success: false, error: { code: errorCode, message: statusCode === 500 ? "An unexpected error occurred" : errorMessage, details: [] },
       meta: { requestId: request.id, timestamp: new Date().toISOString() }
     });
   });
-
   app.get("/health", async () => ({
-    success: true,
-    data: { status: "ok" },
-    meta: { timestamp: new Date().toISOString(), version: "v1" }
+    success: true, data: { status: "ok" }, meta: { timestamp: new Date().toISOString(), version: "v1" }
   }));
-
-  // Every non-health route requires a verified Supabase user. Tenant discovery
-  // is the sole authenticated route that intentionally runs before tenant selection.
   app.addHook("preHandler", async (request, reply) => {
     if (request.routeOptions.url === "/health") return;
-
     const authorization = request.headers.authorization;
     const bearerMatch = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
-    if (!bearerMatch) {
-      return reply.code(401).send({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "A valid Bearer token is required", details: [] },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() }
-      });
-    }
-
+    if (!bearerMatch) return reply.code(401).send({
+      success: false, error: { code: "UNAUTHORIZED", message: "A valid Bearer token is required", details: [] },
+      meta: { requestId: request.id, timestamp: new Date().toISOString() }
+    });
     const token = bearerMatch[1];
-    if (!token || token.length > 8192) {
-      return reply.code(401).send({
-        success: false,
-        error: { code: "UNAUTHORIZED", message: "Bearer token is invalid", details: [] },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() }
-      });
-    }
-
+    if (!token || token.length > 8192) return reply.code(401).send({
+      success: false, error: { code: "UNAUTHORIZED", message: "Bearer token is invalid", details: [] },
+      meta: { requestId: request.id, timestamp: new Date().toISOString() }
+    });
     const { data, error } = await supabase.auth.auth.getUser(token);
-    if (error || !data.user) {
-      return reply.code(401).send({
-        success: false,
-        error: { code: "INVALID_TOKEN", message: "Authentication token is invalid or expired", details: [] },
-        meta: { requestId: request.id, timestamp: new Date().toISOString() }
-      });
-    }
-
+    if (error || !data.user) return reply.code(401).send({
+      success: false, error: { code: "INVALID_TOKEN", message: "Authentication token is invalid or expired", details: [] },
+      meta: { requestId: request.id, timestamp: new Date().toISOString() }
+    });
     request.authUser = data.user;
-
     if (request.routeOptions.url === "/api/v1/tenants") return;
-
     try {
       const tenantId = parseTenantId(request.headers["x-tenant-id"]);
       request.tenantContext = await resolveTenantContext(supabase.admin, data.user, tenantId);
     } catch (error) {
-      if (error instanceof TenantContextError) {
-        return reply.code(error.statusCode).send({
-          success: false,
-          error: { code: error.code, message: error.message, details: [] },
-          meta: { requestId: request.id, timestamp: new Date().toISOString() }
-        });
-      }
+      if (error instanceof TenantContextError) return reply.code(error.statusCode).send({
+        success: false, error: { code: error.code, message: error.message, details: [] },
+        meta: { requestId: request.id, timestamp: new Date().toISOString() }
+      });
       throw error;
     }
   });
-
   await app.register(organizationRoutes, { prefix: "/api/v1/organization", supabase });
   await app.register(auditRoutes, { prefix: "/api/v1", supabase });
   await app.register(tenantRoutes, { prefix: "/api/v1", supabase });
   await app.register(membershipRoutes, { prefix: "/api/v1", supabase });
   await app.register(roleRoutes, { prefix: "/api/v1", supabase });
-
+  await app.register(roleUpdateRoutes, { prefix: "/api/v1", supabase });
   return app;
 }
