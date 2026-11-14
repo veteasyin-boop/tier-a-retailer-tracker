@@ -29,7 +29,7 @@ select set_config(
   true
 );
 
-select private.has_tenant_permission(:'tenant_a'::uuid, 'organization.read') as has_tenant_a_read
+select growta_private.has_tenant_permission(:'tenant_a'::uuid, 'organization.read') as has_tenant_a_read
 \gset
 \if :has_tenant_a_read
   \echo 'PASS: user A has organization.read in tenant A'
