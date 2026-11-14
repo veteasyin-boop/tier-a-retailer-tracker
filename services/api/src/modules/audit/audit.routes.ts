@@ -6,7 +6,7 @@ import { requirePermission } from "../authorization/require-permission.js";
 type RouteOptions = { supabase: SupabaseClients };
 
 export const auditRoutes: FastifyPluginAsync<RouteOptions> = async (app, { supabase }) => {
-  app.get("/", {
+  app.get("/audit-events", {
     preHandler: async (request) => { requirePermission(request.tenantContext, "audit.read"); }
   }, async (request, reply) => {
     const parsed = auditListQuerySchema.safeParse(request.query);
