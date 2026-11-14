@@ -129,6 +129,15 @@ const authHeaders = {
   "x-tenant-id": tenantId
 };
 
+test("keeps the health route public when query parameters are present", async () => {
+  await withApp({}, async (app, calls) => {
+    const response = await app.inject({ method: "GET", url: "/health?probe=1" });
+    assert.equal(response.statusCode, 200);
+    assert.equal(response.json().data.status, "ok");
+    assert.equal(calls.length, 0);
+  });
+});
+
 test("rejects requests without a bearer token", async () => {
   await withApp({}, async (app, calls) => {
     const response = await app.inject({ method: "GET", url: "/api/v1/tenants/me" });
