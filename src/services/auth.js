@@ -110,7 +110,10 @@ class AuthService {
     const recoveryParams = new URLSearchParams(
       typeof window !== 'undefined' ? window.location.hash.replace(/^#/, '') : ''
     );
-    if (recoveryParams.get('type') === 'recovery') {
+    const recoveryQuery = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('auth')
+      : null;
+    if (recoveryParams.get('type') === 'recovery' || recoveryQuery === 'recovery') {
       this.session = session;
       this.user = await supabaseService.getCurrentUser();
       this.status = 'password_recovery';
@@ -245,6 +248,12 @@ class AuthService {
     if (error) throw new Error(error.message || 'Unable to update password.');
     const session = data?.user ? await supabaseService.getCurrentSession() : null;
     if (!session?.access_token) throw new Error('Password updated, but the session must be restored. Sign in again.');
+    if (typeof window !== 'undefined') {
+      const cleanUrl = new URL(window.location.href);
+      cleanUrl.searchParams.delete('auth');
+      cleanUrl.hash = '';
+      window.history.replaceState({}, document.title, cleanUrl.toString());
+    }
     await this.loadAuthenticatedIdentity(session);
     return this.getState();
   }
@@ -256,7 +265,9 @@ class AuthService {
     }
     const ready = await supabaseService.init();
     if (!ready) throw new Error('Supabase is not configured.');
-    const { error } = await supabaseService.resetPasswordForEmail(normalizedEmail, window.location.origin);
+    const redirectUrl = new URL('/', window.location.origin);
+    redirectUrl.searchParams.set('auth', 'recovery');
+    const { error } = await supabaseService.resetPasswordForEmail(normalizedEmail, redirectUrl.toString());
     if (error) throw new Error(error.message || 'Password reset request failed.');
   }
 
