@@ -58,7 +58,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   }));
 
   app.addHook("preHandler", async (request, reply) => {
-    if (request.url === "/health") return;
+    if (request.routeOptions.url === "/health") return;
 
     const authorization = request.headers.authorization;
     if (!authorization?.startsWith("Bearer ")) {
