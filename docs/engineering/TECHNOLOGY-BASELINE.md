@@ -11,7 +11,7 @@
 
 | Component | Target Version | Current Prototype Baseline | Notes |
 | :--- | :--- | :--- | :--- |
-| **Node.js** | v20.x LTS | v20+ Windows Node | Core runtime for tooling and API services |
+| **Node.js** | v22.x LTS for API; prototype tooling may remain on supported local runtime | v20+ Windows Node (prototype) | API requires Node 22+ because Supabase JS dropped Node 20 support in v2.110.0 |
 | **Package Manager** | npm v10.x | npm.cmd | Always invoke `npm.cmd` on Windows PowerShell |
 | **Build Bundler** | Vite 5.4.14 | Vite 5.4.14 | ESM fast dev server with production minification |
 | **Operating System Target** | Linux (Prod) / Windows (Dev) | Windows 11 x64 | Cross-platform compatibility required |
