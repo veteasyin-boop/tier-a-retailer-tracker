@@ -175,9 +175,8 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     const context = request.tenantContext;
     if (!context) return reply.code(401).send({ success: false, error: { code: "UNAUTHORIZED", message: "Tenant context is required", details: [] } });
     let query = supabase.admin.from("designations")
-      .select("id,tenant_id,code,name,description,sort_order,is_active,created_at", { count: "exact" })
+      .select("id,tenant_id,code,name,description,is_active,created_at", { count: "exact" })
       .eq("tenant_id", context.tenantId)
-      .order("sort_order", { ascending: true })
       .order("name", { ascending: true })
       .range(parsed.data.offset, parsed.data.offset + parsed.data.limit - 1);
     if (parsed.data.includeInactive !== "true") query = query.eq("is_active", true);
