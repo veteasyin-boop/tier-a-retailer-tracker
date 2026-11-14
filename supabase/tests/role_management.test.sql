@@ -2,7 +2,7 @@
 BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
-SELECT plan(9);
+SELECT plan(10);
 INSERT INTO public.tenants (id,name,slug,tier,is_active)
 VALUES ('a6000000-0000-4000-8000-000000000001','Role RPC Tenant','role-rpc-test','Test',true);
 INSERT INTO auth.users (id,email) VALUES ('c6000000-0000-4000-8000-000000000001','role-rpc-admin@example.test');
