@@ -60,7 +60,7 @@ Mutation endpoints must validate request bodies, use transactions, emit audit ev
 ## RLS and security model
 
 - All tenant tables in the migration have RLS enabled.
-- Authorization helper functions live in the non-exposed `private` schema and use `SECURITY DEFINER` only to avoid recursive RLS checks. They have fixed empty search paths, fully qualified object names, and explicit execution grants.
+- Authorization helper functions live in the non-exposed `growta_private` schema and use `SECURITY DEFINER` only to avoid recursive RLS checks. They have fixed empty search paths, fully qualified object names, and explicit execution grants.
 - RLS checks active memberships and active tenant roles; it does not trust `raw_user_meta_data`.
 - Role assignment checks prevent assigning permissions the actor does not possess.
 - Scope assignment checks prevent delegating a broader organizational scope than the actor holds.
