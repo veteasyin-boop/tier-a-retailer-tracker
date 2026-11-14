@@ -3,11 +3,12 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(22);
+SELECT plan(23);
 
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a2000000-0000-4000-8000-000000000001', 'Org Test Tenant A', 'org-test-a', 'Test', true),
-  ('a2000000-0000-4000-8000-000000000002', 'Org Test Tenant B', 'org-test-b', 'Test', true);
+  ('a2000000-0000-4000-8000-000000000002', 'Org Test Tenant B', 'org-test-b', 'Test', true),
+  ('a2000000-0000-4000-8000-000000000003', 'Org Test Tenant C', 'org-test-c', 'Test', true);
 
 INSERT INTO auth.users (id, email) VALUES
   ('c2000000-0000-4000-8000-000000000001', 'org-user-a@example.test'),
@@ -24,12 +25,14 @@ INSERT INTO public.memberships (id, tenant_id, user_id, status) VALUES
 INSERT INTO public.org_unit_types (id, tenant_id, code, name) VALUES
   ('e2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000001', 'DIVISION', 'Division'),
   ('e2000000-0000-4000-8000-000000000002', 'a2000000-0000-4000-8000-000000000001', 'BRANCH', 'Branch'),
-  ('e2000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000002', 'DEPOT', 'Depot');
+  ('e2000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000002', 'DEPOT', 'Depot'),
+  ('e2000000-0000-4000-8000-000000000004', 'a2000000-0000-4000-8000-000000000003', 'STORE', 'Store');
 
 INSERT INTO public.org_units (id, tenant_id, unit_type_id, parent_id, code, name) VALUES
   ('f2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000001', NULL, 'NORTH', 'North Division'),
   ('f2000000-0000-4000-8000-000000000002', 'a2000000-0000-4000-8000-000000000001', 'e2000000-0000-4000-8000-000000000002', 'f2000000-0000-4000-8000-000000000001', 'NORTH-BRANCH', 'North Branch'),
-  ('f2000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000002', 'e2000000-0000-4000-8000-000000000003', NULL, 'DEPOT-1', 'Depot 1');
+  ('f2000000-0000-4000-8000-000000000003', 'a2000000-0000-4000-8000-000000000002', 'e2000000-0000-4000-8000-000000000003', NULL, 'DEPOT-1', 'Depot 1'),
+  ('f2000000-0000-4000-8000-000000000004', 'a2000000-0000-4000-8000-000000000003', 'e2000000-0000-4000-8000-000000000004', NULL, 'STORE-1', 'Store 1');
 
 INSERT INTO public.designations (id, tenant_id, code, name) VALUES
   ('b2000000-0000-4000-8000-000000000001', 'a2000000-0000-4000-8000-000000000001', 'REGIONAL_LEAD', 'Regional Lead'),
@@ -117,7 +120,8 @@ SELECT is((SELECT org_unit_id FROM public.membership_org_assignments
   'tenant B membership keeps a different organizational placement');
 
 SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000001'), 2, 'member can read their tenant org units');
-SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000002'), 0, 'member cannot read another tenant org units');
+SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000002'), 1, 'member can read org units in their second tenant membership');
+SELECT is((SELECT count(*)::int FROM public.org_units WHERE tenant_id = 'a2000000-0000-4000-8000-000000000003'), 0, 'member cannot read org units in a tenant without membership');
 SELECT is((SELECT count(*)::int FROM public.membership_org_assignments), 2, 'member sees each tenant-specific primary organizational assignment');
 SELECT is((SELECT count(*)::int FROM public.membership_org_unit_scopes), 1, 'member sees their additional scope assignments');
 SELECT is((SELECT count(*)::int FROM public.membership_reporting_relationships), 1, 'member sees their reporting relationship');
