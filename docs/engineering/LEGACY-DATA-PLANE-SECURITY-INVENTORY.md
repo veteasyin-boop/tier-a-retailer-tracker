@@ -15,7 +15,7 @@ Treat the existing prototype as single-tenant and controlled until its data plan
 | Area | Evidence | Risk |
 |---|---|---|
 | Direct browser data access | `src/services/supabase.js` creates a Supabase client and directly queries retailers, check-ins, assistants, tour plans, meetings, plots, competitor intelligence, farmer leads, audits, weekly reviews, quiz data, EOD, leave, attendance, and TA/DA. `src/services/storage.js` also performs direct table writes/deletes. | API tenant checks do not protect these requests. |
-| Missing tenant key | Legacy operational tables in `supabase_schema.sql` and `supabase_schema_rls.sql` do not declare `tenant_id`. | Tenant-level RLS cannot be expressed reliably on these rows without a mapping/backfill. |
+| Divergent schema snapshots | `supabase_schema.sql` and `supabase_schema_rls.sql` define incompatible versions of overlapping tables (including `assistants`, `retailers`, and `check_in_logs`). | A migration based on either snapshot alone could corrupt or orphan existing data. Verify deployed schema and reconcile both snapshots first. |\n| Missing tenant key | Legacy operational tables in `supabase_schema.sql` and `supabase_schema_rls.sql` do not declare `tenant_id`. | Tenant-level RLS cannot be expressed reliably on these rows without a mapping/backfill. |
 | Broad RLS policies | `supabase_schema.sql` has many `FOR ALL USING (true)` policies, including policies described as public read/write. | If corresponding grants are present, browser roles can bypass the intended app-level access checks. RLS policy alone does not grant SQL privileges, so deployed grants must be inspected too. |
 | Untrusted role claims | `supabase_schema_rls.sql` uses `auth.jwt() -> 'user_metadata' ->> 'role'`, `rep_name`, and an email `LIKE '%admin%'` check. | User metadata is mutable by the user; email naming conventions are not authorization. |
 | Client-side manager session | `src/services/auth.js` defaults manager PIN to `2026`, stores an `isAdmin` flag in session storage, and uses that flag for client-side access decisions. | Browser state is user-controlled and cannot enforce authorization. |
@@ -41,7 +41,7 @@ Treat the existing prototype as single-tenant and controlled until its data plan
 | Performance / workflow | `assistant_kpi_scores`, `aqfs_audits`, `weekly_reviews`, `quiz_questions`, `quiz_states`, `eod_reports`, `tour_plans`, `tour_beat_plans` | Tenant key, role permissions, ownership rules, and explicit data retention. |
 | Inventory | `inventory_allocations`, `inventory_movements` | Tenant-owned product/warehouse references, ledger immutability, and tenant-leading indexes. |
 
-The list is based on checked-in schema snapshots. The deployed schema may contain additional objects or differ from the snapshots.
+The list is based on checked-in schema snapshots. The deployed schema may contain additional objects or differ from the snapshots. The two checked-in snapshots are also structurally divergent: for example, one `assistants` definition uses `name` as its primary key and includes a plaintext password, while the other uses an `id` key and different columns; the `retailers` and `check_in_logs` definitions also differ. This drift must be reconciled against the deployed database before writing a data migration.
 
 ## Required deployed-database verification
 
