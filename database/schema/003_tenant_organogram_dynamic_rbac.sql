@@ -615,16 +615,17 @@ on public.tenant_role_permissions for select to authenticated
 using (private.has_tenant_permission(tenant_id, 'role.manage'));
 
 drop policy if exists tenant_role_permissions_manage on public.tenant_role_permissions;
-create policy tenant_role_permissions_manage
-on public.tenant_role_permissions for all to authenticated
-using (
-  private.has_tenant_permission(tenant_id, 'role.manage')
-  and private.has_tenant_permission(tenant_id, permission_code)
-)
+drop policy if exists tenant_role_permissions_insert on public.tenant_role_permissions;
+create policy tenant_role_permissions_insert
+on public.tenant_role_permissions for insert to authenticated
 with check (
   private.has_tenant_permission(tenant_id, 'role.manage')
   and private.has_tenant_permission(tenant_id, permission_code)
 );
+drop policy if exists tenant_role_permissions_delete on public.tenant_role_permissions;
+create policy tenant_role_permissions_delete
+on public.tenant_role_permissions for delete to authenticated
+using (private.has_tenant_permission(tenant_id, 'role.manage'));
 
 drop policy if exists tenant_membership_roles_read on public.tenant_membership_roles;
 create policy tenant_membership_roles_read
@@ -642,10 +643,17 @@ using (
 );
 
 drop policy if exists tenant_membership_roles_manage on public.tenant_membership_roles;
-create policy tenant_membership_roles_manage
-on public.tenant_membership_roles for all to authenticated
-using (private.can_assign_tenant_role(tenant_id, role_id))
+drop policy if exists tenant_membership_roles_insert on public.tenant_membership_roles;
+create policy tenant_membership_roles_insert
+on public.tenant_membership_roles for insert to authenticated
 with check (private.can_assign_tenant_role(tenant_id, role_id));
+drop policy if exists tenant_membership_roles_delete on public.tenant_membership_roles;
+create policy tenant_membership_roles_delete
+on public.tenant_membership_roles for delete to authenticated
+using (
+  private.has_tenant_permission(tenant_id, 'membership.manage')
+  and private.has_tenant_permission(tenant_id, 'role.manage')
+);
 
 drop policy if exists tenant_membership_scopes_read on public.tenant_membership_scopes;
 create policy tenant_membership_scopes_read
@@ -663,13 +671,18 @@ using (
 );
 
 drop policy if exists tenant_membership_scopes_manage on public.tenant_membership_scopes;
-create policy tenant_membership_scopes_manage
-on public.tenant_membership_scopes for all to authenticated
-using (
-  private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
-)
+drop policy if exists tenant_membership_scopes_insert on public.tenant_membership_scopes;
+create policy tenant_membership_scopes_insert
+on public.tenant_membership_scopes for insert to authenticated
 with check (
   private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
+);
+drop policy if exists tenant_membership_scopes_delete on public.tenant_membership_scopes;
+create policy tenant_membership_scopes_delete
+on public.tenant_membership_scopes for delete to authenticated
+using (
+  private.has_tenant_permission(tenant_id, 'membership.manage')
+  and private.has_tenant_permission(tenant_id, 'scope.assign')
 );
 
 drop policy if exists tenant_reporting_lines_read on public.tenant_reporting_lines;
