@@ -11,7 +11,27 @@ function escapeHtml(value) {
 }
 
 function attachOfflineQueueExport(container) {
-  attachOfflineQueueExport(container);
+  container.querySelector('#exportOfflineQueue')?.addEventListener('click', async () => {
+    const status = container.querySelector('#queueExportStatus');
+    try {
+      const items = await idbStorage.getAllSyncItems();
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        warning: 'Contains locally stored operational data. Store and share this file securely.',
+        items
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `growta-offline-queue-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      if (status) status.textContent = `Exported ${items.length} queued operations.`;
+    } catch (error) {
+      if (status) status.textContent = error.message || 'Unable to export offline operations.';
+    }
+  });
 }
 
 function renderShell(container, body) {
@@ -211,27 +231,7 @@ function renderTenantReady(container, state) {
     renderTenantAuthView(container);
   });
   container.querySelector('#tenantSignOut')?.addEventListener('click', () => auth.signOut());
-  container.querySelector('#exportOfflineQueue')?.addEventListener('click', async () => {
-    const status = container.querySelector('#queueExportStatus');
-    try {
-      const items = await idbStorage.getAllSyncItems();
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        warning: 'Contains locally stored operational data. Store and share this file securely.',
-        items
-      };
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `growta-offline-queue-${new Date().toISOString().slice(0, 10)}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      if (status) status.textContent = `Exported ${items.length} queued operations.`;
-    } catch (error) {
-      if (status) status.textContent = error.message || 'Unable to export offline operations.';
-    }
-  });
+  attachOfflineQueueExport(container);
 }
 
 export function renderTenantAuthView(container) {
