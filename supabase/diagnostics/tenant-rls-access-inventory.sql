@@ -61,14 +61,18 @@ ORDER BY table_name, grantee, privilege_type;
 -- 4. Tenant-leading indexes. A tenant_id index that is not the first key
 -- column may not support the common tenant_id equality predicate efficiently.
 SELECT
-  schemaname,
-  tablename,
-  indexname,
-  indexdef
-FROM pg_indexes
-WHERE schemaname = 'public'
-  AND indexdef ~* 'USING [^(]+\\(tenant_id([, )]|$)'
-ORDER BY tablename, indexname;
+  n.nspname AS schemaname,
+  t.relname AS tablename,
+  i.relname AS indexname,
+  pg_get_indexdef(ix.indexrelid) AS indexdef
+FROM pg_index ix
+JOIN pg_class t ON t.oid = ix.indrelid
+JOIN pg_class i ON i.oid = ix.indexrelid
+JOIN pg_namespace n ON n.oid = t.relnamespace
+WHERE n.nspname = 'public'
+  AND ix.indisvalid
+  AND pg_get_indexdef(ix.indexrelid, 1, true) = 'tenant_id'
+ORDER BY t.relname, i.relname;
 
 -- 5. SECURITY DEFINER functions and execute grants. Review each callable
 -- SECURITY DEFINER function for fixed search_path, safe SQL, and least privilege.
