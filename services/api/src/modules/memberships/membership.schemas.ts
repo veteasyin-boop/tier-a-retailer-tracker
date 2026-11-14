@@ -5,3 +5,7 @@ export const membershipListQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).max(10000).default(0),
   status: z.enum(["invited", "active", "suspended"]).optional()
 }).strict();
+
+export const membershipStatusUpdateSchema = z.object({
+  status: z.enum(["active", "suspended"])
+}).strict();
