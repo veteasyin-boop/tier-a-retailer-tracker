@@ -27,11 +27,20 @@ BEGIN
   END IF;
 
   IF NOT EXISTS (
-    SELECT 1 FROM public.memberships m
+    SELECT 1
+    FROM public.memberships m
+    JOIN public.membership_roles mr
+      ON mr.tenant_id = m.tenant_id AND mr.membership_id = m.id
+    JOIN public.tenant_roles tr
+      ON tr.tenant_id = mr.tenant_id AND tr.id = mr.role_id
+      AND tr.is_active = true AND tr.code <> 'SUPER_ADMIN'
+    JOIN public.tenant_role_permissions trp
+      ON trp.tenant_id = tr.tenant_id AND trp.role_id = tr.id
+      AND trp.permission_code = 'role.manage'
     WHERE m.tenant_id = p_tenant_id
       AND m.user_id = p_actor_user_id
       AND m.status = 'active'
-  ) OR NOT private.has_tenant_permission(p_tenant_id, 'role.manage') THEN
+  ) THEN
     RAISE EXCEPTION 'Role management permission is required' USING ERRCODE = '42501';
   END IF;
 
