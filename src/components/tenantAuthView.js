@@ -10,6 +10,10 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;');
 }
 
+function attachOfflineQueueExport(container) {
+  attachOfflineQueueExport(container);
+}
+
 function renderShell(container, body) {
   container.classList.remove('hidden');
   container.innerHTML = `
@@ -49,11 +53,16 @@ function renderSignIn(container, state) {
     <div style="border-top:1px solid var(--line); margin-top:18px; padding-top:12px; font-size:12px; color:var(--muted);">
       Existing local PINs and shared representative passwords are disabled in production.
     </div>
+    <div style="margin-top:14px;">
+      <button id="exportOfflineQueue" class="btn btn-secondary" type="button" style="width:100%;">Export preserved offline operations</button>
+      <p id="queueExportStatus" style="font-size:11px; color:var(--muted); min-height:16px; margin:6px 0 0;"></p>
+    </div>
   `);
 
   const form = container.querySelector('#tenantSignInForm');
   const button = container.querySelector('#tenantSignInButton');
   const errorEl = container.querySelector('#tenantAuthError');
+  attachOfflineQueueExport(container);
 
   form?.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -146,8 +155,11 @@ function renderNoMembership(container, state) {
       </p>
     </div>
     <p style="font-size:12px; color:var(--muted);">Account: ${escapeHtml(state.user?.email)}</p>
+    <button id="exportOfflineQueue" class="btn btn-secondary" type="button" style="width:100%; margin-bottom:8px;">Export preserved offline operations</button>
+    <p id="queueExportStatus" style="font-size:11px; color:var(--muted); min-height:16px;"></p>
     <button id="tenantSignOut" class="btn btn-secondary" type="button" style="width:100%;">Sign out</button>
   `);
+  attachOfflineQueueExport(container);
   container.querySelector('#tenantSignOut')?.addEventListener('click', () => auth.signOut());
 }
 
