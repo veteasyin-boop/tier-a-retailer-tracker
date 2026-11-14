@@ -1,6 +1,7 @@
 import './styles/main.css';
 import { storage } from './services/storage.js';
-import { auth } from './services/auth.js';
+import { auth, LEGACY_PROTOTYPE_ENABLED } from './services/auth.js';
+import { renderTenantAuthView } from './components/tenantAuthView.js';
 import { renderFieldView, switchFieldSubTab, updateTourNavBadge, closeCounterBottomSheet } from './components/fieldView.js';
 import { renderAdminView } from './components/adminView.js';
 import { showToast } from './components/toast.js';
@@ -12,12 +13,17 @@ let currentView = 'field';
 
 async function bootstrap() {
   initTheme();
+  initPWA();
+
+  if (!LEGACY_PROTOTYPE_ENABLED) {
+    await bootstrapTenantAuth();
+    return;
+  }
+
   initRole();
   initTabs();
   initBottomNav();
   initFab();
-  initPWA();
-
   document.getElementById('storagePill')?.addEventListener('click', () => {
     if (auth.isAdmin) {
       openSupabaseModal();
@@ -95,6 +101,41 @@ async function bootstrap() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') closeCounterBottomSheet();
   });
+}
+
+async function bootstrapTenantAuth() {
+  const hiddenSelectors = [
+    '.tabs-nav',
+    '#mobileBottomNav',
+    '#fabRefresh',
+    '#roleToggle',
+    '#adminLogoutBtn',
+    '#storagePill'
+  ];
+  for (const selector of hiddenSelectors) {
+    document.querySelectorAll(selector).forEach((element) => {
+      element.style.display = 'none';
+    });
+  }
+
+  const loadingEl = document.getElementById('loading');
+  if (loadingEl) loadingEl.classList.add('hidden');
+
+  const container = document.getElementById('mainViewContainer');
+  if (!container) throw new Error('Main application container is missing.');
+  container.classList.remove('hidden');
+
+  window.addEventListener('tracker:authStateChanged', () => {
+    renderTenantAuthView(container);
+  });
+
+  try {
+    await auth.initialize();
+  } catch (error) {
+    auth.error = error.message || 'Unable to initialize authentication.';
+    auth.status = 'error';
+  }
+  renderTenantAuthView(container);
 }
 
 function initTheme() {
