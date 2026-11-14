@@ -4,7 +4,7 @@
 // =========================================================================
 
 const DB_NAME = 'tier_a_idb_v1';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 const STORES = {
   MEDIA: 'media_store',
@@ -51,6 +51,14 @@ class IdbStorageService {
           syncStore.createIndex('entity', 'entity', { unique: false });
           syncStore.createIndex('createdAt', 'createdAt', { unique: false });
           syncStore.createIndex('nextRetry', 'nextRetry', { unique: false });
+          syncStore.createIndex('operationId', 'operationId', { unique: true });
+          syncStore.createIndex('actorUserId', 'actorUserId', { unique: false });
+          syncStore.createIndex('tenantId', 'tenantId', { unique: false });
+        } else {
+          const syncStore = event.target.transaction.objectStore(STORES.SYNC_QUEUE);
+          if (!syncStore.indexNames.contains('operationId')) syncStore.createIndex('operationId', 'operationId', { unique: true });
+          if (!syncStore.indexNames.contains('actorUserId')) syncStore.createIndex('actorUserId', 'actorUserId', { unique: false });
+          if (!syncStore.indexNames.contains('tenantId')) syncStore.createIndex('tenantId', 'tenantId', { unique: false });
         }
       };
 
@@ -169,15 +177,19 @@ class IdbStorageService {
     const db = await this.getDb();
     const syncItem = {
       id: item.id || `sync_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-      entity: item.entity, // 'check_in_logs' | 'demo_plots' | 'farmer_meetings' | 'farmer_leads' | 'tada_claims' | 'attendance_records'
-      action: item.action || 'upsert', // 'upsert' | 'delete' | 'update'
+      operationId: item.operationId,
+      payloadVersion: item.payloadVersion || 1,
+      actorUserId: item.actorUserId || null,
+      tenantId: item.tenantId || null,
+      entity: item.entity,
+      action: item.action || 'upsert',
       payload: item.payload,
-      status: 'pending', // 'pending' | 'processing' | 'failed' | 'synced'
+      status: item.status || 'identity_required',
       attempts: 0,
       nextRetry: Date.now(),
       createdAt: item.createdAt || new Date().toISOString(),
       lastAttempt: null,
-      error: null
+      error: item.error || null
     };
 
     if (!db) return syncItem;
@@ -192,6 +204,25 @@ class IdbStorageService {
         resolve(syncItem);
       };
       req.onerror = (e) => reject(e.target.error);
+    });
+  }
+
+  /**
+   * Returns every queued operation, including quarantined and rejected records.
+   * Existing records are returned unchanged so callers can preserve/export them.
+   */
+  async getAllSyncItems() {
+    const db = await this.getDb();
+    if (!db) return [];
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORES.SYNC_QUEUE, 'readonly');
+      const request = tx.objectStore(STORES.SYNC_QUEUE).getAll();
+      request.onsuccess = () => {
+        const items = request.result || [];
+        items.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        resolve(items);
+      };
+      request.onerror = (event) => reject(event.target.error);
     });
   }
 
