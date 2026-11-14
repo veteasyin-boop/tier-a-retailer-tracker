@@ -69,11 +69,12 @@ No production project is linked or modified by this phase.
 
 The Fastify API now includes:
 - A reusable permission guard that checks the resolved tenant permission set and denies by default.
-- A tenant-scoped `GET /api/v1/audit-events` endpoint protected by `audit.read`.
+- A tenant-scoped `GET /api/v1/audit-events` endpoint protected by `audit.read`, with bounded filters and stable composite keyset pagination.
 - Bounded query validation and tenant predicates on audit reads.
 - An append-only `growta_audit_events` table referencing Supabase Auth actors rather than legacy `public.users`.
 - Browser roles have no direct audit table privileges. The API service role can append and read events but cannot update or delete them.
 - Audit indexes support tenant/time, tenant/entity, and tenant/actor queries.
+- Tenant deletion is restricted while audit events exist; audit history cannot be silently cascade-deleted.
 
 The existing `public.audit_logs` table is a legacy table whose actor foreign key points to `public.users`; it is intentionally not reused for new Auth-backed membership events.
 
