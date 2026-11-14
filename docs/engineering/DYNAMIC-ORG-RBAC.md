@@ -69,6 +69,7 @@ No production project is linked or modified by this phase.
 
 The Fastify API now includes:
 - A reusable permission guard that checks the resolved tenant permission set and denies by default.
+- Tenant-scoped read endpoints for unit types, organizational units, and designations, protected by `organization.read` and bounded pagination.
 - A tenant-scoped `GET /api/v1/audit-events` endpoint protected by `audit.read`, with bounded filters and stable composite keyset pagination.
 - Bounded query validation and tenant predicates on audit reads.
 - An append-only `growta_audit_events` table referencing Supabase Auth actors rather than legacy `public.users`.
@@ -88,6 +89,9 @@ The existing `public.audit_logs` table is a legacy table whose actor foreign key
 |---|---|---|
 | `GET /health` | None | Public health status |
 | `GET /api/v1/tenants/me` | Supabase access token + active tenant membership | Membership context |
+| `GET /api/v1/organization/unit-types` | Supabase access token + active tenant membership | `organization.read` |
+| `GET /api/v1/organization/units` | Supabase access token + active tenant membership | `organization.read` |
+| `GET /api/v1/organization/designations` | Supabase access token + active tenant membership | `organization.read` |
 | `GET /api/v1/audit-events` | Supabase access token + active tenant membership | `audit.read` |
 
 No invitation, owner bootstrap, role mutation, org mutation, or operational business-data endpoints are exposed yet.
