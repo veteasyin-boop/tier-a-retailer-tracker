@@ -86,12 +86,16 @@ JOIN pg_namespace n ON n.oid = p.pronamespace
 WHERE n.nspname IN ('public', 'private')
 ORDER BY n.nspname, p.proname;
 
--- 6. Views and their security-invoker setting (where supported by this Postgres version).
+-- 6. Views, relation options, and definitions. On PostgreSQL versions that
+-- support security_invoker views, inspect reloptions for security_invoker=true.
 SELECT
-  schemaname,
-  viewname,
-  viewowner,
-  definition
-FROM pg_views
-WHERE schemaname = 'public'
-ORDER BY viewname;
+  n.nspname AS schemaname,
+  c.relname AS viewname,
+  pg_get_userbyid(c.relowner) AS viewowner,
+  c.reloptions AS relation_options,
+  pg_get_viewdef(c.oid, true) AS definition
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+WHERE n.nspname = 'public'
+  AND c.relkind = 'v'
+ORDER BY c.relname;
