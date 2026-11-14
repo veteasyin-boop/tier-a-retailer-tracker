@@ -25,6 +25,10 @@ function resolveApiBaseUrl() {
   return url.toString().replace(/\/$/, '');
 }
 
+export function assertTenantApiConfigured() {
+  resolveApiBaseUrl();
+}
+
 export async function tenantApiGet(path, tenantId = null) {
   if (!['/tenants', '/tenants/me'].includes(path)) {
     throw new Error('Unsupported API path.');
