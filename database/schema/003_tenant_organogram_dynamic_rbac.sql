@@ -528,6 +528,7 @@ on public.tenant_memberships for select to authenticated
 using (
   auth_user_id = (select auth.uid())
   or private.has_tenant_permission(tenant_id, 'membership.read')
+  or private.has_tenant_permission(tenant_id, 'membership.manage')
 );
 
 drop policy if exists tenant_memberships_manage on public.tenant_memberships;
