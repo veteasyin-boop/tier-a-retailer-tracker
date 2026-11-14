@@ -26,7 +26,7 @@ function resolveApiBaseUrl() {
 }
 
 export async function tenantApiGet(path, tenantId = null) {
-  if (!path.startsWith('/api/v1/') && path !== '/tenants') {
+  if (!path.startsWith('/tenants')) {
     throw new Error('Unsupported API path.');
   }
 
@@ -42,7 +42,7 @@ export async function tenantApiGet(path, tenantId = null) {
   if (tenantId) headers['X-Tenant-ID'] = tenantId;
 
   const baseUrl = resolveApiBaseUrl();
-  const response = await fetch(`${baseUrl}/api/v1${path.startsWith('/api/v1/') ? path.slice('/api/v1'.length) : path}`, {
+  const response = await fetch(`${baseUrl}/api/v1${path}`, {
     method: 'GET',
     headers,
     credentials: 'omit',
