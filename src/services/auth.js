@@ -1,5 +1,5 @@
 import { supabaseService } from './supabase.js';
-import { tenantApiGet } from './apiClient.js';
+import { assertTenantApiConfigured, tenantApiGet } from './apiClient.js';
 import { hasTenantCapability } from './tenantCapabilities.js';
 
 const SELECTED_TENANT_KEY = 'growta_selected_tenant';
@@ -59,6 +59,14 @@ class AuthService {
   }
 
   async initialize() {
+    try {
+      assertTenantApiConfigured();
+    } catch (error) {
+      this.status = 'configuration_error';
+      this.error = error.message;
+      emitAuthChange();
+      return this.getState();
+    }
     const ready = await supabaseService.init();
     if (!ready) {
       this.status = 'configuration_error';
@@ -114,6 +122,7 @@ class AuthService {
       throw new Error('Enter your password.');
     }
 
+    assertTenantApiConfigured();
     const ready = await supabaseService.init();
     if (!ready) throw new Error('Supabase is not configured.');
     const { data, error } = await supabaseService.signInWithEmail(normalizedEmail, password);
