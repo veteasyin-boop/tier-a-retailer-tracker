@@ -271,7 +271,7 @@ class AuthService {
   // Vite development prototype. They are never enabled in production builds.
   getManagerPin() {
     if (!LEGACY_PROTOTYPE_ENABLED) return null;
-    return import.meta.env?.VITE_LEGACY_MANAGER_PIN || null;
+    return typeof __LEGACY_MANAGER_PIN__ === 'string' ? __LEGACY_MANAGER_PIN__ : null;
   }
 
   setManagerPin() {
