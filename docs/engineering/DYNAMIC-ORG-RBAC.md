@@ -63,3 +63,30 @@ supabase db lint
 ```
 
 No production project is linked or modified by this phase.
+
+
+## API authorization and audit foundation
+
+The Fastify API now includes:
+- A reusable permission guard that checks the resolved tenant permission set and denies by default.
+- A tenant-scoped `GET /api/v1/audit-events` endpoint protected by `audit.read`.
+- Bounded query validation and tenant predicates on audit reads.
+- An append-only `growta_audit_events` table referencing Supabase Auth actors rather than legacy `public.users`.
+- Browser roles have no direct audit table privileges. The API service role can append and read events but cannot update or delete them.
+- Audit indexes support tenant/time, tenant/entity, and tenant/actor queries.
+
+The existing `public.audit_logs` table is a legacy table whose actor foreign key points to `public.users`; it is intentionally not reused for new Auth-backed membership events.
+
+### Transactional audit requirement
+
+`writeAuditEvent()` provides a validated append operation. A separate PostgREST insert cannot be atomic with a business mutation issued in another request. Therefore, every future sensitive mutation must be implemented as a single PostgreSQL RPC/transaction that performs both the domain mutation and audit insert, or use an equivalent transaction-capable database connection. Do not ship a mutation endpoint that performs a write and then independently attempts to log it.
+
+### Current API endpoints
+
+| Endpoint | Authentication | Authorization |
+|---|---|---|
+| `GET /health` | None | Public health status |
+| `GET /api/v1/tenants/me` | Supabase access token + active tenant membership | Membership context |
+| `GET /api/v1/audit-events` | Supabase access token + active tenant membership | `audit.read` |
+
+No invitation, owner bootstrap, role mutation, org mutation, or operational business-data endpoints are exposed yet.
