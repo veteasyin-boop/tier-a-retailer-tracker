@@ -174,6 +174,14 @@ class AuthService {
     return this.getState();
   }
 
+  clearSelectedTenant() {
+    this.selectedTenantId = null;
+    this.tenantContext = null;
+    localStorage.removeItem(SELECTED_TENANT_KEY);
+    this.status = this.tenants.length ? 'tenant_selection' : 'no_memberships';
+    emitAuthChange();
+  }
+
   async signOut() {
     await supabaseService.signOutUser();
     this.clearIdentity('signed_out');
