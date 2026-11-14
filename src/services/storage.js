@@ -298,7 +298,7 @@ class StorageService {
           district: newRec.district,
           target: newRec.target || 50,
           blocks: newRec.blocks || [],
-          password: newRec.password || 'rep123'
+          password: typeof newRec.password === 'string' ? newRec.password : ''
         };
         const idx = this.assistants.findIndex(a => a.name === mappedAsst.name);
         if (idx >= 0) {
