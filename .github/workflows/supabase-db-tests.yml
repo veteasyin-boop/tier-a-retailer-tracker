@@ -35,6 +35,11 @@ jobs:
       - name: Run database and RLS tests
         run: supabase test db
 
+      - name: Validate read-only tenant access inventory SQL
+        run: |
+          eval "$(supabase status -o env)"
+          psql "$DB_URL" -v ON_ERROR_STOP=1 -f supabase/diagnostics/tenant-rls-access-inventory.sql
+
       - name: Set up Node.js for API integration check
         uses: actions/setup-node@v4
         with:
