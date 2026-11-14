@@ -51,6 +51,47 @@ function renderShell(container, body) {
   `;
 }
 
+function renderPasswordRecovery(container, state) {
+  renderShell(container, `
+    <h3 style="font-size:18px; margin:0 0 8px;">Set a new password</h3>
+    <p style="font-size:12px; color:var(--muted);">Your recovery link is verified. Choose a new password to continue.</p>
+    <form id="passwordRecoveryForm" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="recoveryPassword">New password</label>
+        <input id="recoveryPassword" type="password" autocomplete="new-password" required maxlength="256" style="width:100%; padding:12px;">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="recoveryPasswordConfirm">Confirm new password</label>
+        <input id="recoveryPasswordConfirm" type="password" autocomplete="new-password" required maxlength="256" style="width:100%; padding:12px;">
+      </div>
+      <p id="recoveryError" role="alert" style="color:var(--danger); min-height:20px; font-size:13px;"></p>
+      <button id="recoverySubmit" class="btn btn-primary" type="submit" style="width:100%; padding:12px;">Update password</button>
+    </form>
+  `);
+
+  const form = container.querySelector('#passwordRecoveryForm');
+  const button = container.querySelector('#recoverySubmit');
+  const errorEl = container.querySelector('#recoveryError');
+  form?.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    button.disabled = true;
+    button.textContent = 'Updating password…';
+    try {
+      const password = container.querySelector('#recoveryPassword')?.value || '';
+      const confirmation = container.querySelector('#recoveryPasswordConfirm')?.value || '';
+      await auth.updatePassword(password, confirmation);
+      renderTenantAuthView(container);
+    } catch (error) {
+      if (errorEl) errorEl.textContent = error.message || 'Unable to update password.';
+    } finally {
+      if (button.isConnected) {
+        button.disabled = false;
+        button.textContent = 'Update password';
+      }
+    }
+  });
+}
+
 function renderSignIn(container, state) {
   renderShell(container, `
     <form id="tenantSignInForm" novalidate>
@@ -253,6 +294,9 @@ export function renderTenantAuthView(container) {
     case 'initializing':
     case 'loading_tenants':
       renderShell(container, '<p style="color:var(--muted);">Verifying your session and tenant memberships…</p>');
+      return;
+    case 'password_recovery':
+      renderPasswordRecovery(container, state);
       return;
     case 'tenant_selection':
       renderTenantSelection(container, state);
