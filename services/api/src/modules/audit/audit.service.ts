@@ -25,6 +25,20 @@ export async function writeAuditEvent(
     throw new AuditWriteError("Audit event payload is invalid");
   }
 
+  let payloadBytes: number;
+  try {
+    payloadBytes = Buffer.byteLength(JSON.stringify({
+      beforeData: parsed.data.beforeData ?? null,
+      afterData: parsed.data.afterData ?? null,
+      metadata: parsed.data.metadata
+    }) ?? "{}");
+  } catch {
+    throw new AuditWriteError("Audit event payload must be JSON serializable");
+  }
+  if (payloadBytes > 32 * 1024) {
+    throw new AuditWriteError("Audit event payload exceeds the 32 KB limit");
+  }
+
   const { data, error } = await admin
     .from("growta_audit_events")
     .insert({
