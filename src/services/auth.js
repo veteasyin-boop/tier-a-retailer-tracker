@@ -1,5 +1,6 @@
 import { supabaseService } from './supabase.js';
 import { tenantApiGet } from './apiClient.js';
+import { hasTenantCapability } from './tenantCapabilities.js';
 
 const SELECTED_TENANT_KEY = 'growta_selected_tenant';
 const CURRENT_REP_KEY = 'tat_assigned_rep';
@@ -227,6 +228,10 @@ class AuthService {
 
   canAny(permissions = []) {
     return permissions.some((permission) => this.can(permission));
+  }
+
+  canCapability(capability) {
+    return hasTenantCapability(this.tenantContext, capability);
   }
 
   getSyncIdentity() {
