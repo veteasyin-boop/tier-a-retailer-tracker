@@ -15,6 +15,19 @@ The legacy role catalogue grants `STATE_HEAD` all permissions currently represen
 
 The flexible organization model intentionally does not equate job titles, reporting position, or organizational level with authorization. A role's effective permissions must come from explicit tenant role-permission assignments. Silently changing legacy grants during migration would also alter existing behavior without an approved migration rule.
 
+## Existing seed findings
+
+The repository's Bihar seed currently:
+- Grants every permission in the legacy catalogue to `STATE_HEAD`.
+- Grants every permission in the legacy catalogue to `SUPER_ADMIN` (the new API excludes this role from tenant role resolution).
+- Gives `FIELD_OFFICER` a limited explicit permission set.
+- Defines `TERRITORY_MANAGER` but does not add any `role_permissions` rows for it in this seed.
+
+These are facts about the checked-in seed, not confirmation that they are the intended production authorization policy. The live development database must be inspected before a migration decision is made.
+
+Use the read-only diagnostic `supabase/diagnostics/legacy-role-permission-audit.sql` after applying the RBAC migration to compare source grants with each tenant's copied grants. It does not change any permissions.
+
+
 ## Why it matters
 
 - Broad legacy grants may unintentionally authorize future tenant API endpoints.
