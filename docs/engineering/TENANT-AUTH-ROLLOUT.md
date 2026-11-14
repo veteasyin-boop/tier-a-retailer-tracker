@@ -81,3 +81,14 @@ The GitHub Actions workflow runs the frontend build/security tests and API type/
 4. Migrate one operational domain at a time to tenant-filtered API routes and RLS.
 5. Implement transactional idempotent writes and dead-letter correction/retry UI.
 6. Only after domain-by-domain verification, enable the migrated UI modules for tenant memberships.
+
+
+## Supabase Auth redirect configuration
+
+Add the deployed application URL with the recovery query parameter to Supabase Auth's allowed redirect URLs, for example:
+
+```
+https://app.your-domain.example/?auth=recovery
+```
+
+Also allow the local development URL used by the Vite server. The password reset email returns to this callback, where the user sets and confirms a new password through Supabase Auth. The callback is handled before tenant API configuration is required, so a temporarily unavailable API does not prevent password recovery.
