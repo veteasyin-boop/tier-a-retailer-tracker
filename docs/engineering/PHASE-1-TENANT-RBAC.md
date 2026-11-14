@@ -65,3 +65,17 @@ The pgTAP suite creates two isolated tenants and Auth users in a transaction. It
 2. Define the exact identity-management permission semantics before enabling tenant administrators to invite users or mutate roles/scopes.
 3. Add scope-aware authorization to each domain query/API; scope metadata alone does not automatically filter existing operational tables.
 4. Add a verified migration process from legacy `public.users` to Auth identities.
+
+
+## API foundation verification
+
+The development branch currently exposes the following authenticated read surface:
+- `GET /api/v1/tenants/me` — active tenant membership context.
+- `GET /api/v1/organization/unit-types`, `/units`, and `/designations` — tenant-wide organization metadata protected by `organization.read`.
+- `GET /api/v1/audit-events` — tenant-filtered audit history protected by `audit.read`, with bounded filters and composite keyset pagination.
+
+The API request boundary validates the Supabase bearer token, active tenant, and active membership before resolving permissions. Cross-tenant membership selection is denied. The API unit suite verifies tenant predicates for identity, role, permission, scope, organization, and audit queries. CI has passed the API type-check/unit suite and the 45 pgTAP database/RLS tests on commit `ec3cd0e`.
+
+The database CI now also runs a read-only live PostgREST parser check for the audit composite cursor expression. This confirms the filter is accepted by PostgREST; populated-row pagination semantics still require a future fixture-backed integration test.
+
+No tenant provisioning, invitation, owner bootstrap/transfer, role mutation, organization mutation, or operational business-data endpoints are implemented. These remain blocked by unresolved provisioning/delegation decisions and the need for explicit per-domain scope contracts. No production database has been linked or migrated.
