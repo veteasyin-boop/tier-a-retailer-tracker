@@ -88,6 +88,17 @@ class SupabaseService {
     });
   }
 
+  async resetPasswordForEmail(email, redirectTo) {
+    if (!this.client) throw new Error('Supabase client is not initialized.');
+    return await this.client.auth.resetPasswordForEmail(email, { redirectTo });
+  }
+
+  onAuthStateChange(callback) {
+    if (!this.client) return null;
+    const { data } = this.client.auth.onAuthStateChange(callback);
+    return data?.subscription || null;
+  }
+
   async signOutUser() {
     if (!this.client) return;
     return await this.client.auth.signOut();
