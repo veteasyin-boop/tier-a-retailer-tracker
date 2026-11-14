@@ -391,6 +391,67 @@ revoke all on function private.can_assign_tenant_role(uuid, uuid) from public, a
 grant execute on function private.has_tenant_permission(uuid, text) to authenticated;
 grant execute on function private.can_assign_tenant_role(uuid, uuid) to authenticated;
 
+create or replace function private.can_assign_membership_scope(
+  p_tenant_id uuid,
+  p_membership_id uuid,
+  p_scope_type text,
+  p_org_unit_id uuid
+)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  with actor_scopes as (
+    select s.scope_type, s.org_unit_id
+    from public.tenant_memberships actor
+    join public.tenant_membership_scopes s
+      on s.tenant_id = actor.tenant_id and s.membership_id = actor.id
+    where actor.tenant_id = p_tenant_id
+      and actor.auth_user_id = (select auth.uid())
+      and actor.employment_status = 'active'
+  ),
+  permitted_subtree(unit_id) as (
+    select org_unit_id from actor_scopes where scope_type = 'subtree'
+    union
+    select child.id
+    from public.tenant_org_units child
+    join permitted_subtree parent on child.parent_unit_id = parent.unit_id
+    where child.tenant_id = p_tenant_id
+  )
+  select
+    private.has_tenant_permission(p_tenant_id, 'membership.manage')
+    and private.has_tenant_permission(p_tenant_id, 'scope.assign')
+    and exists (
+      select 1
+      from public.tenant_memberships target
+      where target.tenant_id = p_tenant_id
+        and target.id = p_membership_id
+        and (
+          (p_scope_type = 'self' and target.auth_user_id = (select auth.uid()))
+          or exists (
+            select 1 from actor_scopes a
+            where a.scope_type = 'tenant'
+          )
+          or (
+            p_scope_type = 'unit'
+            and exists (
+              select 1 from actor_scopes a
+              where a.scope_type = 'unit' and a.org_unit_id = p_org_unit_id
+            )
+          )
+          or (
+            p_scope_type in ('unit', 'subtree')
+            and p_org_unit_id in (select unit_id from permitted_subtree)
+          )
+        )
+    );
+$;
+
+revoke all on function private.can_assign_membership_scope(uuid, uuid, text, uuid) from public, anon;
+grant execute on function private.can_assign_membership_scope(uuid, uuid, text, uuid) to authenticated;
+
 -- 6. Immutable audit events for organizational and authorization changes.
 create table if not exists public.tenant_org_audit_events (
   id uuid primary key default gen_random_uuid(),
@@ -604,8 +665,12 @@ using (
 drop policy if exists tenant_membership_scopes_manage on public.tenant_membership_scopes;
 create policy tenant_membership_scopes_manage
 on public.tenant_membership_scopes for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'scope.assign'))
-with check (private.has_tenant_permission(tenant_id, 'scope.assign'));
+using (
+  private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
+)
+with check (
+  private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
+);
 
 drop policy if exists tenant_reporting_lines_read on public.tenant_reporting_lines;
 create policy tenant_reporting_lines_read
