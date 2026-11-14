@@ -74,7 +74,7 @@ The development branch currently exposes the following authenticated read surfac
 - `GET /api/v1/organization/unit-types`, `/units`, and `/designations` — tenant-wide organization metadata protected by `organization.read`.
 - `GET /api/v1/audit-events` — tenant-filtered audit history protected by `audit.read`, with bounded filters and composite keyset pagination.
 
-The API request boundary validates the Supabase bearer token, active tenant, and active membership before resolving permissions. Cross-tenant membership selection is denied. The API unit suite verifies tenant predicates for identity, role, permission, scope, organization, and audit queries. CI passed the API type-check/unit suite and all 45 pgTAP database/RLS tests on commit `16a2f34`. On commit `cbb61e0`, API type-check/unit tests passed again, all 45 pgTAP tests passed, and the fixture-backed populated PostgREST audit pagination test passed.
+The API request boundary validates the Supabase bearer token, active tenant, and active membership before resolving permissions. Cross-tenant membership selection is denied. The API unit suite verifies tenant predicates for identity, role, permission, scope, organization, and audit queries. Latest verified CI on commit `1321c94792971aead2ed7b7e57f9ea9fa723ab18`: API checks passed (run `43636195159`); database/RLS checks, all 45 pgTAP tests, populated PostgREST audit pagination integration, and local Supabase cleanup passed (run `43636195136`).
 
 The database CI runs a fixture-backed PostgREST integration test against five local audit rows sharing one timestamp. It verifies the composite cursor's UUID tie-break ordering across three pages, with no duplicate or skipped records. The test creates its Auth user and audit rows only against the disposable local Supabase instance and refuses non-local URLs.
 
@@ -88,3 +88,22 @@ No tenant provisioning, invitation, owner bootstrap/transfer, role mutation, org
 - **Service-role boundary:** API data queries currently use the Supabase `service_role` client, which bypasses RLS. Explicit tenant predicates and server-side membership/permission checks are therefore the effective API isolation boundary. RLS protects browser/non-service-role access paths, not these API queries. See `docs/open-questions/OQ-0003-API-SERVICE-ROLE-RLS-BOUNDARY.md`.
 - Legacy role grants are not changed. `docs/open-questions/OQ-0002-LEGACY-STATE-HEAD-PERMISSIONS.md` records the broad `STATE_HEAD` grant and the unassigned `TERRITORY_MANAGER` seed role; `supabase/diagnostics/legacy-role-permission-audit.sql` provides a read-only grant inventory.
 - OQ-0001 remains blocking for tenant provisioning, owner bootstrap/transfer, invitations, and role delegation. OQ-0002 blocks assigning unreviewed legacy roles. OQ-0003 blocks adding tenant operational-data APIs until the database authorization context is approved.
+
+
+## Legacy browser data-plane security review (2026-11-15)
+
+A static review of the existing browser client and legacy schema snapshots found that the prototype is **not ready for multi-tenant onboarding**:
+
+- The browser still calls Supabase directly for operational data from `src/services/supabase.js` and `src/services/storage.js`; those requests bypass the new API's tenant, permission, and org-scope checks.
+- Legacy operational tables in `supabase_schema.sql` / `supabase_schema_rls.sql` do not have a `tenant_id` key.
+- `supabase_schema.sql` contains permissive `USING (true)` policies, including policies intended for public/browser access.
+- `supabase_schema_rls.sql` trusts user-editable JWT `user_metadata` for role and representative identity and treats an email substring as manager evidence.
+- `src/services/auth.js` has a default manager PIN, a browser-stored admin session flag, and client-side representative password comparison. `supabase_schema.sql` stores an assistant password in plaintext with a weak default.
+
+These are source-snapshot findings, not a statement about the exact deployed policy/grant state. Run the read-only `supabase/diagnostics/tenant-rls-access-inventory.sql` against the development database to inspect actual RLS flags, policies, grants, tenant-key coverage, tenant-leading indexes, and SECURITY DEFINER functions.
+
+The target is to migrate legacy operations behind authenticated API routes while preserving offline storage and sync. Do not blanket-rewrite legacy RLS or drop the old credential fields before a verified data mapping and replacement flow exists. See:
+- `docs/engineering/LEGACY-DATA-PLANE-SECURITY-INVENTORY.md`
+- `docs/open-questions/OQ-0004-LEGACY-BROWSER-TENANT-ISOLATION.md`
+
+OQ-0004 blocks multi-tenant onboarding against the legacy browser data plane. OQ-0001 through OQ-0004 remain open; no production policy, credential, or database changes were made.
