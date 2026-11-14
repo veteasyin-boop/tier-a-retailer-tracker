@@ -19,6 +19,8 @@ How will the existing single-tenant browser/PWA data plane be migrated to authen
 6. `supabase_schema.sql` includes a plaintext `assistants.password` column with default `rep123`; `src/services/supabase.js` reads and writes that field.
 7. The legacy operational schema does not have a verified mapping from its assistant/representative identity to `auth.users` and the new tenant membership model.
 8. `supabase_schema.sql` and `supabase_schema_rls.sql` are divergent snapshots of overlapping tables (including `assistants`, `retailers`, and `check_in_logs`). A migration cannot safely assume either file exactly matches the deployed database.
+9. `src/services/syncQueue.js` stores `{ entity, action, payload }` in IndexedDB without binding the queued operation to an authenticated user or tenant. The payload includes client-supplied `assistant` / `rep` values. The server must derive actor and tenant from the verified token, never from these payload fields.
+10. The current sync worker treats `PGRST204`, `23503`, and `42P01` errors as success (`return true`), which causes `processQueue()` to delete the queued item. A schema mismatch or foreign-key violation can therefore silently discard an offline mutation. The worker also retries all other failures until the retry limit without a user-facing dead-letter/recovery workflow.
 
 These findings describe checked-in source. The read-only diagnostic `supabase/diagnostics/tenant-rls-access-inventory.sql` must also be run against the actual development project to inventory deployed grants, policies, RLS flags, indexes, and SECURITY DEFINER functions. The deployed state may differ from the source snapshots.
 
@@ -46,6 +48,7 @@ Migration sequence:
 4. Move one vertical slice at a time (read first, then mutations) behind the API. Enforce tenant, permission, and explicit org-scope predicates on every query.
 5. Add offline synchronization idempotency, conflict handling, audit transaction semantics, and integration tests before retiring direct browser table access.
 6. Remove broad legacy grants/policies and plaintext/client-side credentials only after the corresponding API path is live and verified.
+7. Redesign the offline sync envelope and state machine before switching any write path: persist a client operation UUID plus the authenticated account/tenant context at enqueue; pause the queue if the active account/tenant differs; derive the authoritative actor and tenant on the API; make server writes idempotent; and retain rejected operations for correction/export instead of deleting them as successful.
 
 ## Decisions required
 
@@ -53,6 +56,7 @@ Migration sequence:
 - Confirm the canonical business identity for an assistant/field representative and the owner of that identity lifecycle.
 - Approve the data migration and retention policy for legacy passwords, attendance, GPS check-ins, farmer/retailer records, and offline queues.
 - Define which roles may read or mutate each operational domain and how org scopes filter those records.
+- Approve the offline queue's account-switch behavior, idempotency contract, conflict policy, and dead-letter recovery UX.
 
 ## Affected modules
 
