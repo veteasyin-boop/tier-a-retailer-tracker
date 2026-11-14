@@ -26,7 +26,7 @@
 ## Authorization model
 
 - Authentication identity comes from Supabase Auth `auth.uid()`; client-selected roles, email patterns, user metadata, and local PINs are not authorization sources.
-- A tenant is accessible only when the authenticated user has an `active` membership.
+- A tenant is accessible only when the authenticated user has an `active` membership and the tenant itself is active.
 - `private.has_tenant_permission(tenant_id, permission_code)` checks active membership, tenant role assignment, active tenant role, and the mapped permission.
 - Tenant-owned catalogues use composite foreign keys so a role, membership, or scope cannot reference an object from a different tenant.
 - RLS is enabled on every new table. Browser clients can read only their own membership/profile/role/scope context and their tenant's role catalogue. Membership and role-assignment writes are server-only.

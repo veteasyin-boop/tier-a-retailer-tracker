@@ -5,11 +5,12 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(20);
+SELECT plan(21);
 
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a1000000-0000-4000-8000-000000000001', 'Growta RBAC Test A', 'growta-rbac-test-a', 'Test', true),
-  ('a1000000-0000-4000-8000-000000000002', 'Growta RBAC Test B', 'growta-rbac-test-b', 'Test', true);
+  ('a1000000-0000-4000-8000-000000000002', 'Growta RBAC Test B', 'growta-rbac-test-b', 'Test', true),
+  ('a1000000-0000-4000-8000-000000000003', 'Growta RBAC Test C', 'growta-rbac-test-c', 'Test', false);
 
 INSERT INTO public.organizations (id, tenant_id, name, code, state, country, is_active) VALUES
   ('b1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'Test Org A', 'TEST-A', 'Bihar', 'India', true),
@@ -28,7 +29,9 @@ INSERT INTO public.memberships (id, tenant_id, user_id, status) VALUES
   ('d1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001',
    'c1000000-0000-4000-8000-000000000001', 'active'),
   ('d1000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000002',
-   'c1000000-0000-4000-8000-000000000002', 'active');
+   'c1000000-0000-4000-8000-000000000002', 'active'),
+  ('d1000000-0000-4000-8000-000000000003', 'a1000000-0000-4000-8000-000000000003',
+   'c1000000-0000-4000-8000-000000000001', 'active');
 
 INSERT INTO public.growta_permissions (code, category, description)
 VALUES ('test.permission', 'Test', 'Test-only permission')
@@ -69,7 +72,7 @@ SELECT ok((
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = 'c1000000-0000-4000-8000-000000000001';
 
-SELECT is((SELECT count(*)::int FROM public.memberships), 1, 'user sees only their own membership');
+SELECT is((SELECT count(*)::int FROM public.memberships WHERE tenant_id = 'a1000000-0000-4000-8000-000000000001'), 1, 'user sees their membership for the selected tenant');
 SELECT is((SELECT count(*)::int FROM public.memberships WHERE tenant_id = 'a1000000-0000-4000-8000-000000000002'), 0, 'user cannot see another tenant membership');
 SELECT is((SELECT count(*)::int FROM public.tenant_roles WHERE tenant_id = 'a1000000-0000-4000-8000-000000000001'), 1, 'member can read roles in their tenant');
 SELECT is((SELECT count(*)::int FROM public.tenant_roles WHERE tenant_id = 'a1000000-0000-4000-8000-000000000002'), 0, 'member cannot read another tenant roles');
@@ -80,6 +83,7 @@ SELECT is((SELECT count(*)::int FROM public.tenant_scope_assignments), 1, 'user 
 SELECT is((SELECT count(*)::int FROM public.auth_profiles), 1, 'user sees only their own profile');
 SELECT ok(private.has_tenant_membership('a1000000-0000-4000-8000-000000000001'), 'active membership check succeeds for own tenant');
 SELECT ok(NOT private.has_tenant_membership('a1000000-0000-4000-8000-000000000002'), 'active membership check fails for another tenant');
+SELECT ok(NOT private.has_tenant_membership('a1000000-0000-4000-8000-000000000003'), 'inactive tenant membership is denied');
 SELECT ok(private.has_tenant_permission('a1000000-0000-4000-8000-000000000001', 'test.permission'), 'permission check succeeds for assigned role');
 SELECT ok(NOT private.has_tenant_permission('a1000000-0000-4000-8000-000000000002', 'test.permission'), 'permission check fails across tenants');
 

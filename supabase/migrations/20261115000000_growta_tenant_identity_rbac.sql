@@ -188,6 +188,9 @@ AS $function$
   SELECT EXISTS (
     SELECT 1
     FROM public.memberships AS m
+    JOIN public.tenants AS t
+      ON t.id = m.tenant_id
+     AND t.is_active IS TRUE
     WHERE m.tenant_id = p_tenant_id
       AND m.user_id = (SELECT auth.uid())
       AND m.status = 'active'
@@ -207,6 +210,9 @@ AS $function$
   SELECT EXISTS (
     SELECT 1
     FROM public.memberships AS m
+    JOIN public.tenants AS t
+      ON t.id = m.tenant_id
+     AND t.is_active IS TRUE
     JOIN public.membership_roles AS mr
       ON mr.tenant_id = m.tenant_id
      AND mr.membership_id = m.id
