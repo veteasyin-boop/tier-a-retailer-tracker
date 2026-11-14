@@ -87,3 +87,6 @@ The production browser entry point now defaults to the tenant-authentication she
 The new UI uses Supabase Auth email/password, then the authenticated `GET /api/v1/tenants` endpoint and explicit tenant selection. Tenant-scoped context is loaded from `GET /api/v1/tenants/me`. Local PINs, default representative passwords, email-substring role inference, and the plaintext password display were removed from the production path.
 
 **This is a containment measure, not completion of the legacy data-plane migration.** Existing operational records still lack verified Auth identity and tenant ownership. The operational workspace remains intentionally locked after tenant selection until data ownership, RLS, API reads/writes, and org-scope rules are migrated. OQ-0004 therefore remains blocking for multi-tenant operational onboarding.
+
+
+The legacy browser client no longer selects the `assistants.password` column, writes that field, or stores it in the local assistant cache. Existing local assistant cache rows are sanitized on load and the default `rep123` values have been removed from the static assistant seed. The legacy representative password login is disabled. The old database column/default may still exist in deployed environments; its removal is intentionally deferred until the deployed schema and all consumers have been reconciled.
