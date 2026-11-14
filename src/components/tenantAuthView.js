@@ -268,6 +268,8 @@ export function renderTenantAuthView(container) {
       renderShell(container, `
         <div role="alert" style="color:var(--danger); font-size:13px; margin-bottom:14px;">${escapeHtml(state.error || 'Authentication service is unavailable.')}</div>
         <button id="tenantRetry" class="btn btn-primary" type="button" style="width:100%;">Retry connection</button>
+        <button id="exportOfflineQueue" class="btn btn-secondary" type="button" style="width:100%; margin-top:8px;">Export preserved offline operations</button>
+        <p id="queueExportStatus" style="font-size:11px; color:var(--muted); min-height:16px;"></p>
         <button id="tenantSignOut" class="btn btn-secondary" type="button" style="width:100%; margin-top:8px;">Clear session / sign out</button>
       `);
       container.querySelector('#tenantRetry')?.addEventListener('click', async () => {
@@ -280,6 +282,7 @@ export function renderTenantAuthView(container) {
           renderTenantAuthView(container);
         }
       });
+      attachOfflineQueueExport(container);
       container.querySelector('#tenantSignOut')?.addEventListener('click', () => auth.signOut());
       return;
     case 'signed_out':
