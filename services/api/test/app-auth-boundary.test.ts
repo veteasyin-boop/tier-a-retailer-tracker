@@ -27,6 +27,7 @@ type MockOptions = {
   tokenValid?: boolean;
   tenantActive?: boolean;
   membershipStatus?: string | null;
+  selectedTenantId?: string;
   permissions?: string[];
 };
 
@@ -37,6 +38,7 @@ function makeSupabase(options: MockOptions = {}) {
     tokenValid = true,
     tenantActive = true,
     membershipStatus = "active",
+    selectedTenantId = tenantId,
     permissions = ["organization.read"]
   } = options;
 
@@ -56,7 +58,7 @@ function makeSupabase(options: MockOptions = {}) {
         is(column: string, value: unknown) { filters[column] = value; return builder; },
         or(expression: string) { filters.or = expression; return builder; },
         maybeSingle: async (): Promise<QueryResult> => {
-          if (table === "tenants") return { data: { id: tenantId, is_active: tenantActive }, error: null };
+          if (table === "tenants") return { data: { id: selectedTenantId, is_active: tenantActive }, error: null };
           if (table === "memberships") return {
             data: membershipStatus ? { id: membershipId, status: membershipStatus } : null,
             error: null
@@ -177,6 +179,30 @@ test("rejects inactive tenants and suspended memberships", async (t) => {
       assert.equal(response.statusCode, 403);
       assert.equal(response.json().error.code, "TENANT_ACCESS_DENIED");
     });
+  });
+});
+
+
+test("denies an authenticated user who has no membership in the selected tenant", async () => {
+  const otherTenantId = "a2000000-0000-4000-8000-000000000002";
+
+  await withApp({ selectedTenantId: otherTenantId, membershipStatus: null }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/tenants/me",
+      headers: {
+        authorization: "Bearer valid-test-token",
+        "x-tenant-id": otherTenantId
+      }
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error.code, "TENANT_ACCESS_DENIED");
+
+    const membershipQuery = calls.find((call) => call.table === "memberships");
+    assert.ok(membershipQuery, "membership lookup should execute");
+    assert.equal(membershipQuery.filters.tenant_id, otherTenantId);
+    assert.equal(membershipQuery.filters.user_id, userId);
   });
 });
 
