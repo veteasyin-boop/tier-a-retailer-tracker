@@ -98,8 +98,8 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   });
 
   await app.register(organizationRoutes, { prefix: "/api/v1/organization", supabase });
-  await app.register(auditRoutes, { prefix: "/api/v1/audit-events", supabase });
-  await app.register(tenantRoutes, { prefix: "/api/v1/tenants" });
+  await app.register(auditRoutes, { prefix: "/api/v1", supabase });
+  await app.register(tenantRoutes, { prefix: "/api/v1" });
 
   return app;
 }
