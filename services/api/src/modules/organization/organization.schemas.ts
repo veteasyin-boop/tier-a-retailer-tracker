@@ -1,9 +1,16 @@
 import { z } from "zod";
 
-export const organizationListQuerySchema = z.object({
+const organizationPaginationQuerySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
   offset: z.coerce.number().int().min(0).max(10000).default(0),
-  includeInactive: z.enum(["true", "false"]).default("false"),
+  includeInactive: z.enum(["true", "false"]).default("false")
+}).strict();
+
+/** Query contract shared by unit types and designations. */
+export const organizationMetadataListQuerySchema = organizationPaginationQuerySchema;
+
+/** Query contract for organizational units, which additionally support tree filters. */
+export const organizationListQuerySchema = organizationPaginationQuerySchema.extend({
   parentId: z.string().uuid().optional(),
   rootsOnly: z.enum(["true", "false"]).default("false")
 }).strict().superRefine((value, ctx) => {
