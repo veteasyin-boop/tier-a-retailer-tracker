@@ -35,6 +35,15 @@ jobs:
       - name: Run database and RLS tests
         run: supabase test db
 
+      - name: Set up Node.js for API integration check
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install API dependencies
+        working-directory: services/api
+        run: npm install --no-audit --no-fund
+
       - name: Verify audit keyset filter against local PostgREST
         working-directory: services/api
         run: |
