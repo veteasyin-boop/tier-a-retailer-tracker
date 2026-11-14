@@ -24,10 +24,10 @@ The API remains a modular monolith. Route registration and cross-cutting concern
 1. Every tenant-scoped Supabase query explicitly filters `tenant_id` (or the tenant primary key for the tenant lookup).
 2. The API uses a server-side Supabase `service_role` client, which bypasses RLS. Therefore explicit tenant predicates and server-side authorization are the effective API isolation boundary; RLS protects browser/non-service-role access paths but is not a second boundary for these API queries.
 3. The bearer token is validated through Supabase Auth before resolving the selected tenant.
-3. `X-Tenant-ID` selects a tenant; it is not authorization. Active membership and permissions are resolved server-side.
-4. The service-role Supabase client is passed only to server-side route plugins and is never serialized to clients.
-5. Permission checks remain fail-closed through the existing authorization guard.
-6. This extraction does not add write endpoints, role mutation, invitations, tenant provisioning, or operational data access.
+4. `X-Tenant-ID` selects a tenant; it is not authorization. Active membership and permissions are resolved server-side.
+5. The service-role Supabase client is passed only to server-side route plugins and is never serialized to clients.
+6. Permission checks remain fail-closed through the existing authorization guard.
+7. This extraction does not add write endpoints, role mutation, invitations, tenant provisioning, or operational data access.
 
 ## API compatibility
 
