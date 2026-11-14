@@ -123,7 +123,15 @@ class AuthService {
     this.error = null;
     emitAuthChange();
 
-    const response = await tenantApiGet('/tenants');
+    let response;
+    try {
+      response = await tenantApiGet('/tenants');
+    } catch (error) {
+      this.status = 'error';
+      this.error = error.message || 'Unable to load tenant memberships.';
+      emitAuthChange();
+      throw error;
+    }
     this.tenants = Array.isArray(response.data) ? response.data : [];
     if (this.tenants.length === 0) {
       this.status = 'no_memberships';
