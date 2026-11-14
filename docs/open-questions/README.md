@@ -8,5 +8,7 @@
 
 | OQ ID | Title | Module | Status | Date Logged |
 | :--- | :--- | :--- | :--- | :--- |
-| OQ-0001 | Initial tenant-owner bootstrap and permission delegation | Identity / RBAC | Blocking | 2026-11-15 |\n| OQ-0002 | Legacy STATE_HEAD role authorization semantics | Identity / legacy RBAC | Blocking before legacy role assignment / operational API access | 2026-11-15 |
+| OQ-0001 | Initial tenant-owner bootstrap and permission delegation | Identity / RBAC | Blocking | 2026-11-15 |
+| OQ-0002 | Legacy STATE_HEAD role authorization semantics | Identity / legacy RBAC | Blocking before legacy role assignment / operational API access | 2026-11-15 |
 | OQ-0003 | Database authorization context for tenant API queries | API / database authorization | Blocking before new tenant operational-data APIs | 2026-11-15 |
+| OQ-0004 | Legacy browser data-plane tenant isolation and authentication | Legacy field operations / multi-tenancy | Blocking before multi-tenant onboarding | 2026-11-15 |
