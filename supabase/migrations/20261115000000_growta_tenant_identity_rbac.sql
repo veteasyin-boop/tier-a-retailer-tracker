@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS public.tenant_roles (
   is_active BOOLEAN NOT NULL DEFAULT true,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   CONSTRAINT uq_tenant_roles_tenant_code UNIQUE (tenant_id, code),
-  CONSTRAINT uq_tenant_roles_tenant_id_id UNIQUE (tenant_id, id)
+  CONSTRAINT uq_tenant_roles_tenant_id_id UNIQUE (tenant_id, id),
+  CONSTRAINT ck_tenant_roles_not_platform_super_admin CHECK (code <> 'SUPER_ADMIN')
 );
 
 CREATE TABLE IF NOT EXISTS public.tenant_role_permissions (
@@ -151,6 +152,7 @@ INSERT INTO public.tenant_roles (tenant_id, code, name, description, is_system)
 SELECT t.id, r.id, r.name, r.description, true
 FROM public.tenants AS t
 CROSS JOIN public.roles AS r
+WHERE r.id <> 'SUPER_ADMIN'
 ON CONFLICT (tenant_id, code) DO NOTHING;
 
 INSERT INTO public.tenant_role_permissions (tenant_id, role_id, permission_code)
@@ -220,6 +222,7 @@ AS $function$
       ON tr.tenant_id = mr.tenant_id
      AND tr.id = mr.role_id
      AND tr.is_active = true
+     AND tr.code <> 'SUPER_ADMIN'
     JOIN public.tenant_role_permissions AS trp
       ON trp.tenant_id = tr.tenant_id
      AND trp.role_id = tr.id

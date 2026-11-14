@@ -5,7 +5,7 @@ BEGIN;
 CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(21);
+SELECT plan(24);
 
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a1000000-0000-4000-8000-000000000001', 'Growta RBAC Test A', 'growta-rbac-test-a', 'Test', true),
@@ -54,6 +54,14 @@ INSERT INTO public.membership_roles (tenant_id, membership_id, role_id) VALUES
 INSERT INTO public.tenant_scope_assignments (tenant_id, membership_id, organization_id) VALUES
   ('a1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000001'),
   ('a1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000002');
+
+SELECT is((SELECT count(*)::int FROM public.tenant_roles WHERE code = 'SUPER_ADMIN'), 0,
+  'platform SUPER_ADMIN is never copied into tenant role catalogues');
+SELECT ok(NOT has_function_privilege('anon', 'private.has_tenant_membership(uuid)', 'EXECUTE'),
+  'anonymous role cannot execute private tenant membership helper');
+SELECT ok(NOT has_function_privilege('authenticated', 'public.resolve_membership_org_unit_scope(uuid,uuid)', 'EXECUTE')
+  AND has_function_privilege('service_role', 'public.resolve_membership_org_unit_scope(uuid,uuid)', 'EXECUTE'),
+  'scope resolver RPC is executable only by trusted service role');
 
 SELECT ok((
   SELECT bool_and(c.relrowsecurity)
