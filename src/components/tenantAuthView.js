@@ -1,5 +1,6 @@
 import { auth } from '../services/auth.js';
 import { idbStorage } from '../services/idbStorage.js';
+import { TENANT_UI_CAPABILITIES } from '../services/tenantCapabilities.js';
 
 function escapeHtml(value) {
   return String(value ?? '')
@@ -190,6 +191,11 @@ function renderTenantReady(container, state) {
   const permissionList = permissions.length
     ? permissions.map((permission) => `<li>${escapeHtml(permission)}</li>`).join('')
     : '<li>No permissions assigned</li>';
+  const availableCapabilities = Object.keys(TENANT_UI_CAPABILITIES)
+    .filter((capability) => auth.canCapability(capability));
+  const capabilityList = availableCapabilities.length
+    ? availableCapabilities.map((capability) => `<li>${escapeHtml(capability)}</li>`).join('')
+    : '<li>No mapped application capabilities are currently granted</li>';
 
   renderShell(container, `
     <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
@@ -208,6 +214,10 @@ function renderTenantReady(container, state) {
       <details style="margin-top:8px;">
         <summary style="cursor:pointer; font-size:12px; font-weight:700;">View granted permissions (${permissions.length})</summary>
         <ul style="font-size:12px; padding-left:20px; line-height:1.7;">${permissionList}</ul>
+      </details>
+      <details style="margin-top:8px;">
+        <summary style="cursor:pointer; font-size:12px; font-weight:700;">Mapped UI capabilities (${availableCapabilities.length})</summary>
+        <ul style="font-size:12px; padding-left:20px; line-height:1.7;">${capabilityList}</ul>
       </details>
     </div>
     <div style="margin-top:14px; border-left:4px solid var(--warning); background:var(--surface-alt); padding:12px;">
