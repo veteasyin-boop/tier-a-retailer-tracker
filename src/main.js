@@ -80,12 +80,14 @@ async function bootstrap() {
   });
 
   window.addEventListener('tracker:syncStatus', (e) => {
-    const { isOnline, isSyncing, pendingCount } = e.detail || {};
+    const { isOnline, isSyncing, pendingCount, blockedCount, syncEnabled } = e.detail || {};
     const storageLabel = document.getElementById('storageLabel');
     const storagePill = document.getElementById('storagePill');
     if (storageLabel) {
       if (isSyncing) {
         storageLabel.textContent = `Syncing (${pendingCount})...`;
+      } else if (pendingCount > 0 && !syncEnabled) {
+        storageLabel.textContent = `Held (${pendingCount})`;
       } else if (pendingCount > 0) {
         storageLabel.textContent = isOnline ? `Queued (${pendingCount})` : `Offline (${pendingCount})`;
       } else {
@@ -93,7 +95,7 @@ async function bootstrap() {
       }
     }
     if (storagePill) {
-      storagePill.title = `Network: ${isOnline ? 'Online' : 'Offline'} • Pending queue in IndexedDB: ${pendingCount || 0} • Click to configure Supabase`;
+      storagePill.title = `Network: ${isOnline ? 'Online' : 'Offline'} • Preserved queue items: ${pendingCount || 0} • Blocked: ${blockedCount || 0} • Automatic sync: ${syncEnabled ? 'enabled' : 'held pending secure API migration'}`;
     }
   });
 
