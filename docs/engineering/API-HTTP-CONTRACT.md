@@ -206,7 +206,8 @@ Error messages and details are not a stable machine contract beyond the error co
 ## 4. Tenant isolation and scope boundaries
 
 - Every tenant-owned query in these routes includes an explicit `tenant_id = selectedTenantId` predicate.
-- Database RLS remains a secondary boundary; it does not replace API authorization.
+- These API routes use the server-side Supabase `service_role` client. Supabase service-role requests bypass RLS; RLS therefore does **not** provide a second enforcement layer for these API queries. Explicit tenant predicates and server-side membership/permission checks are the effective API authorization boundary.
+- RLS still protects browser and other non-service-role access paths. Never describe service-role API queries as RLS-protected.
 - The selected tenant header is never accepted as proof of membership.
 - Organization metadata is tenant-wide by approved contract. No implicit manager/reporting-line filtering is performed.
 - No operational business-data route is implemented until its domain-specific scope contract is approved.
