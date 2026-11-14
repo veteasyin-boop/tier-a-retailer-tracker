@@ -1,52 +1,41 @@
-# OQ-0001 — Tenant owner and initial administrator role
+# OQ-0001 — Initial tenant-owner bootstrap and permission delegation
 
-**Status:** Blocking  
+**Status:** Blocking for tenant provisioning  
 **Date logged:** 2026-11-15  
-**Module:** Identity, tenancy, RBAC, tenant provisioning  
+**Module:** Identity, tenancy, flexible RBAC  
 **Authority:** GROWTA-MASTER-PRD-001 §§18–19, 45, 98
 
 ## Question
 
-Which tenant-scoped role should be assigned to the first user who owns/administers a newly provisioned tenant?
+How should the first tenant owner receive initial tenant-administration capabilities, and what restrictions apply when tenant administrators create or delegate roles?
 
 ## Context
 
-The current schema and Phase 1 migration contain the legacy roles:
+Growta tenants can have different organization charts, designations, job titles, reporting structures, role names, and data scopes. A fixed `TENANT_ADMIN` / `STATE_HEAD` / `TERRITORY_MANAGER` hierarchy is not appropriate as a universal tenant role model.
 
-- `SUPER_ADMIN`
-- `STATE_HEAD`
-- `TERRITORY_MANAGER`
-- `FIELD_OFFICER`
-
-The PRD's permission matrix distinguishes a tenant-level **Admin** from a **Super Admin Platform scope**. The current database role catalogue does not contain a dedicated tenant administrator role. The existing `SUPER_ADMIN` description grants platform-wide/system governance semantics and must not be assigned to a tenant owner.
-
-The provisioning API cannot safely activate a tenant owner or grant administrative capabilities until this distinction is explicit. Reusing `STATE_HEAD` would silently change its documented sales-management meaning.
-
-## Why this matters
-
-- The first tenant administrator needs to invite and manage members, assign approved tenant roles, and administer tenant configuration.
-- Tenant administrators must never gain cross-tenant/platform access.
-- The API must not invent a role or permissions, or allow a client to self-assign them.
-- Role assignment must be atomic with tenant membership provisioning and audited.
+The Phase 2 schema separates organizational placement, designation, reporting, RBAC roles, permissions, and additional scopes. The global `SUPER_ADMIN` remains a platform-level concept and must never be assigned as a tenant role.
 
 ## Options
 
-1. **Recommended — add a dedicated `TENANT_ADMIN` role.** It is tenant-scoped and distinct from platform `SUPER_ADMIN`. Define its exact permission set, including membership administration, role assignment, tenant settings, and audit visibility. The role must never authorize access outside its own tenant.
-2. **Reuse `STATE_HEAD`.** This avoids a new role but conflates state sales supervision with tenant administration and is not recommended.
-3. **Keep tenant provisioning platform-operated only.** Do not assign tenant-admin capabilities until a later approved role design; this delays self-service tenant administration.
+1. **Recommended:** Platform-controlled provisioning creates a tenant-specific initial owner membership and tenant-defined owner role (or equivalent tenant-scoped permission bundle). The tenant may define other roles and designations freely. The owner can delegate only permissions the owner is allowed to delegate; platform-only permissions are never delegable.
+2. Platform operators manually manage all tenant membership and role grants. This is safer initially but does not support tenant self-administration.
+3. Allow any tenant administrator to grant any permission in the tenant. This is flexible but creates privilege-escalation risk and is not recommended.
 
 ## Recommendation
 
-Approve option 1. Define `TENANT_ADMIN` as a tenant-scoped role with only tenant-local administration permissions. Keep `SUPER_ADMIN` reserved for platform operations. The exact permission codes and actions should be reviewed before implementation.
+Use option 1. Do not hardcode a universal business organogram or designation hierarchy. Keep a small platform-controlled bootstrap boundary, then allow tenant-specific roles and permissions within that boundary. Enforce delegation limits server-side and in transactional database operations.
+
+## Decisions required before provisioning API
+
+- Confirm the initial owner is provisioned only by a platform-controlled workflow.
+- Define whether owner-level administration can be transferred, and the required recovery process.
+- Define whether tenant roles can delegate all tenant permissions or only an explicit subset.
+- Define the immutable platform permission namespace that tenant owners can never grant.
 
 ## Affected modules
 
-- Tenant provisioning and invitations
-- Membership lifecycle
-- RBAC and permission catalogue
-- Audit logging
-- Tenant settings and administration UI
+Tenant provisioning, membership lifecycle, RBAC, role delegation, organization management, audit, tenant recovery.
 
 ## Blocking status
 
-**Blocking for tenant-owner provisioning and invitation APIs.** Read-only authenticated identity and membership endpoints can be implemented independently. No role should be assigned automatically until this question is resolved.
+**Blocking for tenant creation, owner bootstrap, invitations, and role-management endpoints.** The dynamic organization schema and read-only identity context can be developed independently.

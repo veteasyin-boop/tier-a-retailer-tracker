@@ -8,4 +8,4 @@
 
 | OQ ID | Title | Module | Status | Date Logged |
 | :--- | :--- | :--- | :--- | :--- |
-| OQ-0001 | Tenant owner and initial administrator role | Identity / RBAC | Blocking | 2026-11-15 |
+| OQ-0001 | Initial tenant-owner bootstrap and permission delegation | Identity / RBAC | Blocking | 2026-11-15 |
