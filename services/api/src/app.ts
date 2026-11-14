@@ -56,15 +56,16 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     if (request.routeOptions.url === "/health") return;
 
     const authorization = request.headers.authorization;
-    if (!authorization?.startsWith("Bearer ")) {
+    const bearerMatch = authorization?.trim().match(/^Bearer\\s+(\\S+)$/i);
+    if (!bearerMatch) {
       return reply.code(401).send({
         success: false,
-        error: { code: "UNAUTHORIZED", message: "Bearer token is required", details: [] },
+        error: { code: "UNAUTHORIZED", message: "A valid Bearer token is required", details: [] },
         meta: { requestId: request.id, timestamp: new Date().toISOString() }
       });
     }
 
-    const token = authorization.slice("Bearer ".length).trim();
+    const token = bearerMatch[1];
     if (!token || token.length > 8192) {
       return reply.code(401).send({
         success: false,
