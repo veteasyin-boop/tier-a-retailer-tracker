@@ -9,9 +9,9 @@
 -- ============================================================================
 begin;
 
-create schema if not exists private;
-revoke all on schema private from public, anon;
-grant usage on schema private to authenticated;
+create schema if not exists growta_private;
+revoke all on schema growta_private from public, anon;
+grant usage on schema growta_private to authenticated;
 
 -- 1. Tenant-owned organization units. unit_type is tenant-defined
 -- (e.g. company, state, region, zone, territory, HQ, department, branch).
@@ -40,7 +40,7 @@ create index if not exists idx_tenant_org_units_parent
 create index if not exists idx_tenant_org_units_active
   on public.tenant_org_units(tenant_id, is_active, sort_order);
 
-create or replace function private.prevent_org_unit_cycle()
+create or replace function growta_private.prevent_org_unit_cycle()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -80,7 +80,7 @@ drop trigger if exists trg_prevent_org_unit_cycle on public.tenant_org_units;
 create trigger trg_prevent_org_unit_cycle
 before insert or update of parent_unit_id, tenant_id
 on public.tenant_org_units
-for each row execute function private.prevent_org_unit_cycle();
+for each row execute function growta_private.prevent_org_unit_cycle();
 
 -- 2. Tenant-owned designations. Designation is a job title, not a permission role.
 create table if not exists public.tenant_designations (
@@ -291,7 +291,7 @@ create index if not exists idx_reporting_report
   on public.tenant_reporting_lines(tenant_id, report_membership_id)
   where ends_at is null;
 
-create or replace function private.prevent_reporting_cycle()
+create or replace function growta_private.prevent_reporting_cycle()
 returns trigger
 language plpgsql
 set search_path = ''
@@ -327,11 +327,11 @@ drop trigger if exists trg_prevent_reporting_cycle on public.tenant_reporting_li
 create trigger trg_prevent_reporting_cycle
 before insert or update of tenant_id, report_membership_id, manager_membership_id, relationship_type, ends_at
 on public.tenant_reporting_lines
-for each row execute function private.prevent_reporting_cycle();
+for each row execute function growta_private.prevent_reporting_cycle();
 
 -- 5. Authorization helpers. These functions are private, use auth.uid(),
 -- and do not trust user-editable metadata or caller-supplied tenant context.
-create or replace function private.has_tenant_permission(
+create or replace function growta_private.has_tenant_permission(
   p_tenant_id uuid,
   p_permission_code text
 )
@@ -362,7 +362,7 @@ as $$
     );
 $$;
 
-create or replace function private.can_assign_tenant_role(
+create or replace function growta_private.can_assign_tenant_role(
   p_tenant_id uuid,
   p_role_id uuid
 )
@@ -373,8 +373,8 @@ security definer
 set search_path = ''
 as $$
   select
-    private.has_tenant_permission(p_tenant_id, 'membership.manage')
-    and private.has_tenant_permission(p_tenant_id, 'role.manage')
+    growta_private.has_tenant_permission(p_tenant_id, 'membership.manage')
+    and growta_private.has_tenant_permission(p_tenant_id, 'role.manage')
     and exists (
       select 1 from public.tenant_roles target_role
       where target_role.tenant_id = p_tenant_id
@@ -386,18 +386,18 @@ as $$
       from public.tenant_role_permissions target_permission
       where target_permission.tenant_id = p_tenant_id
         and target_permission.role_id = p_role_id
-        and not private.has_tenant_permission(
+        and not growta_private.has_tenant_permission(
           p_tenant_id, target_permission.permission_code
         )
     );
 $$;
 
-revoke all on function private.has_tenant_permission(uuid, text) from public, anon;
-revoke all on function private.can_assign_tenant_role(uuid, uuid) from public, anon;
-grant execute on function private.has_tenant_permission(uuid, text) to authenticated;
-grant execute on function private.can_assign_tenant_role(uuid, uuid) to authenticated;
+revoke all on function growta_private.has_tenant_permission(uuid, text) from public, anon;
+revoke all on function growta_private.can_assign_tenant_role(uuid, uuid) from public, anon;
+grant execute on function growta_private.has_tenant_permission(uuid, text) to authenticated;
+grant execute on function growta_private.can_assign_tenant_role(uuid, uuid) to authenticated;
 
-create or replace function private.can_assign_membership_scope(
+create or replace function growta_private.can_assign_membership_scope(
   p_tenant_id uuid,
   p_membership_id uuid,
   p_scope_type text,
@@ -427,8 +427,8 @@ as $scope$
     where child.tenant_id = p_tenant_id
   )
   select
-    private.has_tenant_permission(p_tenant_id, 'membership.manage')
-    and private.has_tenant_permission(p_tenant_id, 'scope.assign')
+    growta_private.has_tenant_permission(p_tenant_id, 'membership.manage')
+    and growta_private.has_tenant_permission(p_tenant_id, 'scope.assign')
     and exists (
       select 1
       from public.tenant_memberships target
@@ -455,8 +455,8 @@ as $scope$
     );
 $scope$;
 
-revoke all on function private.can_assign_membership_scope(uuid, uuid, text, uuid) from public, anon;
-grant execute on function private.can_assign_membership_scope(uuid, uuid, text, uuid) to authenticated;
+revoke all on function growta_private.can_assign_membership_scope(uuid, uuid, text, uuid) from public, anon;
+grant execute on function growta_private.can_assign_membership_scope(uuid, uuid, text, uuid) to authenticated;
 
 -- 6. Immutable audit events for organizational and authorization changes.
 create table if not exists public.tenant_org_audit_events (
@@ -476,7 +476,7 @@ create index if not exists idx_tenant_org_audit_tenant_time
 create index if not exists idx_tenant_org_audit_entity
   on public.tenant_org_audit_events(tenant_id, entity_type, entity_id);
 
-create or replace function private.audit_tenant_org_change()
+create or replace function growta_private.audit_tenant_org_change()
 returns trigger
 language plpgsql
 security definer
@@ -518,7 +518,7 @@ begin
 end;
 $$;
 
-revoke all on function private.audit_tenant_org_change() from public, anon, authenticated;
+revoke all on function growta_private.audit_tenant_org_change() from public, anon, authenticated;
 
 do $$
 declare
@@ -537,7 +537,7 @@ begin
   loop
     execute format('drop trigger if exists trg_audit_%I on public.%I', table_name, table_name);
     execute format(
-      'create trigger trg_audit_%I after insert or update or delete on public.%I for each row execute function private.audit_tenant_org_change()',
+      'create trigger trg_audit_%I after insert or update or delete on public.%I for each row execute function growta_private.audit_tenant_org_change()',
       table_name, table_name
     );
   end loop;
@@ -565,74 +565,74 @@ drop policy if exists tenant_org_units_read on public.tenant_org_units;
 create policy tenant_org_units_read
 on public.tenant_org_units for select to authenticated
 using (
-  private.has_tenant_permission(tenant_id, 'organization.read')
-  or private.has_tenant_permission(tenant_id, 'organization.manage')
+  growta_private.has_tenant_permission(tenant_id, 'organization.read')
+  or growta_private.has_tenant_permission(tenant_id, 'organization.manage')
 );
 
 drop policy if exists tenant_org_units_manage on public.tenant_org_units;
 create policy tenant_org_units_manage
 on public.tenant_org_units for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'organization.manage'))
-with check (private.has_tenant_permission(tenant_id, 'organization.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'organization.manage'))
+with check (growta_private.has_tenant_permission(tenant_id, 'organization.manage'));
 
 drop policy if exists tenant_designations_read on public.tenant_designations;
 create policy tenant_designations_read
 on public.tenant_designations for select to authenticated
 using (
-  private.has_tenant_permission(tenant_id, 'organization.read')
-  or private.has_tenant_permission(tenant_id, 'designation.manage')
+  growta_private.has_tenant_permission(tenant_id, 'organization.read')
+  or growta_private.has_tenant_permission(tenant_id, 'designation.manage')
 );
 
 drop policy if exists tenant_designations_manage on public.tenant_designations;
 create policy tenant_designations_manage
 on public.tenant_designations for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'designation.manage'))
-with check (private.has_tenant_permission(tenant_id, 'designation.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'designation.manage'))
+with check (growta_private.has_tenant_permission(tenant_id, 'designation.manage'));
 
 drop policy if exists tenant_memberships_read on public.tenant_memberships;
 create policy tenant_memberships_read
 on public.tenant_memberships for select to authenticated
 using (
   auth_user_id = (select auth.uid())
-  or private.has_tenant_permission(tenant_id, 'membership.read')
-  or private.has_tenant_permission(tenant_id, 'membership.manage')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.read')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.manage')
 );
 
 drop policy if exists tenant_memberships_manage on public.tenant_memberships;
 create policy tenant_memberships_manage
 on public.tenant_memberships for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'membership.manage'))
-with check (private.has_tenant_permission(tenant_id, 'membership.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'membership.manage'))
+with check (growta_private.has_tenant_permission(tenant_id, 'membership.manage'));
 
 drop policy if exists tenant_roles_read on public.tenant_roles;
 create policy tenant_roles_read
 on public.tenant_roles for select to authenticated
-using (private.has_tenant_permission(tenant_id, 'role.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'role.manage'));
 
 drop policy if exists tenant_roles_manage on public.tenant_roles;
 create policy tenant_roles_manage
 on public.tenant_roles for all to authenticated
 using (
   not is_system
-  and private.has_tenant_permission(tenant_id, 'role.manage')
+  and growta_private.has_tenant_permission(tenant_id, 'role.manage')
 )
 with check (
   not is_system
-  and private.has_tenant_permission(tenant_id, 'role.manage')
+  and growta_private.has_tenant_permission(tenant_id, 'role.manage')
 );
 
 drop policy if exists tenant_role_permissions_read on public.tenant_role_permissions;
 create policy tenant_role_permissions_read
 on public.tenant_role_permissions for select to authenticated
-using (private.has_tenant_permission(tenant_id, 'role.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'role.manage'));
 
 drop policy if exists tenant_role_permissions_manage on public.tenant_role_permissions;
 drop policy if exists tenant_role_permissions_insert on public.tenant_role_permissions;
 create policy tenant_role_permissions_insert
 on public.tenant_role_permissions for insert to authenticated
 with check (
-  private.has_tenant_permission(tenant_id, 'role.manage')
-  and private.has_tenant_permission(tenant_id, permission_code)
+  growta_private.has_tenant_permission(tenant_id, 'role.manage')
+  and growta_private.has_tenant_permission(tenant_id, permission_code)
   and exists (
     select 1 from public.tenant_roles r
     where r.tenant_id = tenant_role_permissions.tenant_id
@@ -644,7 +644,7 @@ drop policy if exists tenant_role_permissions_delete on public.tenant_role_permi
 create policy tenant_role_permissions_delete
 on public.tenant_role_permissions for delete to authenticated
 using (
-  private.has_tenant_permission(tenant_id, 'role.manage')
+  growta_private.has_tenant_permission(tenant_id, 'role.manage')
   and exists (
     select 1 from public.tenant_roles r
     where r.tenant_id = tenant_role_permissions.tenant_id
@@ -664,21 +664,21 @@ using (
       and m.auth_user_id = (select auth.uid())
       and m.employment_status = 'active'
   )
-  or private.has_tenant_permission(tenant_id, 'membership.read')
-  or private.has_tenant_permission(tenant_id, 'membership.manage')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.read')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.manage')
 );
 
 drop policy if exists tenant_membership_roles_manage on public.tenant_membership_roles;
 drop policy if exists tenant_membership_roles_insert on public.tenant_membership_roles;
 create policy tenant_membership_roles_insert
 on public.tenant_membership_roles for insert to authenticated
-with check (private.can_assign_tenant_role(tenant_id, role_id));
+with check (growta_private.can_assign_tenant_role(tenant_id, role_id));
 drop policy if exists tenant_membership_roles_delete on public.tenant_membership_roles;
 create policy tenant_membership_roles_delete
 on public.tenant_membership_roles for delete to authenticated
 using (
-  private.has_tenant_permission(tenant_id, 'membership.manage')
-  and private.has_tenant_permission(tenant_id, 'role.manage')
+  growta_private.has_tenant_permission(tenant_id, 'membership.manage')
+  and growta_private.has_tenant_permission(tenant_id, 'role.manage')
 );
 
 drop policy if exists tenant_membership_scopes_read on public.tenant_membership_scopes;
@@ -692,8 +692,8 @@ using (
       and m.auth_user_id = (select auth.uid())
       and m.employment_status = 'active'
   )
-  or private.has_tenant_permission(tenant_id, 'membership.read')
-  or private.has_tenant_permission(tenant_id, 'scope.assign')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.read')
+  or growta_private.has_tenant_permission(tenant_id, 'scope.assign')
 );
 
 drop policy if exists tenant_membership_scopes_manage on public.tenant_membership_scopes;
@@ -701,14 +701,14 @@ drop policy if exists tenant_membership_scopes_insert on public.tenant_membershi
 create policy tenant_membership_scopes_insert
 on public.tenant_membership_scopes for insert to authenticated
 with check (
-  private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
+  growta_private.can_assign_membership_scope(tenant_id, membership_id, scope_type, org_unit_id)
 );
 drop policy if exists tenant_membership_scopes_delete on public.tenant_membership_scopes;
 create policy tenant_membership_scopes_delete
 on public.tenant_membership_scopes for delete to authenticated
 using (
-  private.has_tenant_permission(tenant_id, 'membership.manage')
-  and private.has_tenant_permission(tenant_id, 'scope.assign')
+  growta_private.has_tenant_permission(tenant_id, 'membership.manage')
+  and growta_private.has_tenant_permission(tenant_id, 'scope.assign')
 );
 
 drop policy if exists tenant_reporting_lines_read on public.tenant_reporting_lines;
@@ -729,20 +729,20 @@ using (
       and m.auth_user_id = (select auth.uid())
       and m.employment_status = 'active'
   )
-  or private.has_tenant_permission(tenant_id, 'membership.read')
-  or private.has_tenant_permission(tenant_id, 'reporting.manage')
+  or growta_private.has_tenant_permission(tenant_id, 'membership.read')
+  or growta_private.has_tenant_permission(tenant_id, 'reporting.manage')
 );
 
 drop policy if exists tenant_reporting_lines_manage on public.tenant_reporting_lines;
 create policy tenant_reporting_lines_manage
 on public.tenant_reporting_lines for all to authenticated
-using (private.has_tenant_permission(tenant_id, 'reporting.manage'))
-with check (private.has_tenant_permission(tenant_id, 'reporting.manage'));
+using (growta_private.has_tenant_permission(tenant_id, 'reporting.manage'))
+with check (growta_private.has_tenant_permission(tenant_id, 'reporting.manage'));
 
 drop policy if exists tenant_org_audit_events_read on public.tenant_org_audit_events;
 create policy tenant_org_audit_events_read
 on public.tenant_org_audit_events for select to authenticated
-using (private.has_tenant_permission(tenant_id, 'audit.read'));
+using (growta_private.has_tenant_permission(tenant_id, 'audit.read'));
 
 -- Deliberately no INSERT/UPDATE/DELETE policy on audit events. The trigger is
 -- the only write path for authenticated application users.
