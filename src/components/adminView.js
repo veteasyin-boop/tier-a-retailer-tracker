@@ -193,7 +193,6 @@ export function renderAdminView(container, allRows) {
           <button class="btn btn-secondary btn-sm" id="btnAdminSopGuide" style="color: var(--primary); font-weight: 600;">🌱 SOP Guide</button>
           <button class="btn btn-secondary btn-sm" id="btnAdminAddAssistant">+ Add Assistant</button>
           <button class="btn btn-secondary btn-sm" id="btnAdminReassignBlock">🔄 Reassign Territory</button>
-          <button class="btn btn-secondary btn-sm" id="btnAdminChangePin">🔑 Change PIN</button>
           <button class="btn btn-secondary btn-sm" id="btnAdminLogout" style="color: var(--danger); font-weight: 600; border-color: rgba(220, 38, 38, 0.3);">🚪 Logout Admin</button>
           <button class="btn btn-primary btn-sm" id="btnAdminLock">🔒 Lock Admin</button>
         </div>
