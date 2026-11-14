@@ -7,12 +7,12 @@ This document describes the implemented API only. It does not authorize unimplem
 
 ## 1. Request authentication and tenant selection
 
-All endpoints except `GET /health` require:
+All endpoints except `GET /health` require a valid Supabase bearer token. Tenant-scoped endpoints additionally require:
 
 | Header | Required | Contract |
 |---|---:|---|
 | `Authorization` | Yes | `Bearer <Supabase access token>`; token is validated with Supabase Auth |
-| `X-Tenant-ID` | Yes | UUID selecting the tenant context; selection is not authorization |
+| `X-Tenant-ID` | Yes, except `GET /api/v1/tenants` | UUID selecting the tenant context; selection is not authorization |
 | `Accept` | No | Prefer `application/json` |
 
 A request succeeds only if the selected tenant exists and is active, and the authenticated Supabase user has an active membership in that tenant. Permissions are resolved from active tenant roles assigned to that membership. The platform-only `SUPER_ADMIN` role is excluded from tenant role resolution.
@@ -37,6 +37,35 @@ Public liveness endpoint. Query parameters do not change its public status.
   }
 }
 ```
+
+### `GET /api/v1/tenants`
+
+Lists active tenants in which the authenticated Supabase Auth user has an active membership. This endpoint is used immediately after email/password sign-in, before the user selects a tenant.
+
+**Authorization:** valid Supabase bearer token. No `X-Tenant-ID` header is accepted or required.
+
+**Success — 200**
+
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "UUID",
+      "name": "Tenant name",
+      "slug": "tenant-slug"
+    }
+  ],
+  "meta": {
+    "requestId": "request UUID",
+    "timestamp": "2026-11-15T00:00:00.000Z",
+    "version": "v1",
+    "limit": 100
+  }
+}
+```
+
+The server filters memberships by the verified Auth user ID and `status = active`, and excludes inactive tenants. The response is capped at 100 memberships. The selected tenant must still be sent as `X-Tenant-ID` on subsequent tenant-scoped requests; every such request independently verifies active membership and permissions. An empty array means the authenticated account has no active tenant membership. It does not create or provision a tenant.
 
 ### `GET /api/v1/tenants/me`
 
