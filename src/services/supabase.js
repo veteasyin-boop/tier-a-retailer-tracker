@@ -381,7 +381,7 @@ class SupabaseService {
   // --- ASSISTANTS ---
   async fetchAssistants() {
     if (!this.client) return null;
-    const { data, error } = await this.client.from('assistants').select('*');
+    const { data, error } = await this.client.from('assistants').select('name,hq,district,target,blocks');
     if (error) {
       console.warn('Supabase fetchAssistants error:', error.message);
       return null;
@@ -391,8 +391,7 @@ class SupabaseService {
       hq: a.hq,
       district: a.district,
       target: a.target || 50,
-      blocks: a.blocks || [],
-      password: a.password || 'rep123'
+      blocks: a.blocks || []
     }));
   }
 
