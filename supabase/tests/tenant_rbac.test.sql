@@ -1,12 +1,12 @@
 -- Growta One tenant identity/RBAC tests.
--- Run against a disposable local Supabase database with: supabase test db
+-- Run with: supabase test db
 
 BEGIN;
+CREATE EXTENSION IF NOT EXISTS pgtap WITH SCHEMA extensions;
 SET search_path TO public, extensions;
 
-SELECT plan(16);
+SELECT plan(20);
 
--- Isolated fixtures; all rows are rolled back at the end of this test.
 INSERT INTO public.tenants (id, name, slug, tier, is_active) VALUES
   ('a1000000-0000-4000-8000-000000000001', 'Growta RBAC Test A', 'growta-rbac-test-a', 'Test', true),
   ('a1000000-0000-4000-8000-000000000002', 'Growta RBAC Test B', 'growta-rbac-test-b', 'Test', true);
@@ -15,17 +15,10 @@ INSERT INTO public.organizations (id, tenant_id, name, code, state, country, is_
   ('b1000000-0000-4000-8000-000000000001', 'a1000000-0000-4000-8000-000000000001', 'Test Org A', 'TEST-A', 'Bihar', 'India', true),
   ('b1000000-0000-4000-8000-000000000002', 'a1000000-0000-4000-8000-000000000002', 'Test Org B', 'TEST-B', 'Bihar', 'India', true);
 
-INSERT INTO auth.users (
-  instance_id, id, aud, role, email, encrypted_password, email_confirmed_at,
-  raw_app_meta_data, raw_user_meta_data, created_at, updated_at
-) VALUES
-  ('00000000-0000-0000-0000-000000000000', 'c1000000-0000-4000-8000-000000000001',
-   'authenticated', 'authenticated', 'rbac-a@example.test', '', now(),
-   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now()),
-  ('00000000-0000-0000-0000-000000000000', 'c1000000-0000-4000-8000-000000000002',
-   'authenticated', 'authenticated', 'rbac-b@example.test', '', now(),
-   '{"provider":"email","providers":["email"]}'::jsonb, '{}'::jsonb, now(), now())
-ON CONFLICT (id) DO NOTHING;
+-- Supabase Auth supports minimal fixture inserts for database-level RLS tests.
+INSERT INTO auth.users (id, email) VALUES
+  ('c1000000-0000-4000-8000-000000000001', 'rbac-a@example.test'),
+  ('c1000000-0000-4000-8000-000000000002', 'rbac-b@example.test');
 
 INSERT INTO public.auth_profiles (user_id, full_name) VALUES
   ('c1000000-0000-4000-8000-000000000001', 'RBAC User A'),
@@ -59,6 +52,20 @@ INSERT INTO public.tenant_scope_assignments (tenant_id, membership_id, organizat
   ('a1000000-0000-4000-8000-000000000001', 'd1000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000001'),
   ('a1000000-0000-4000-8000-000000000002', 'd1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000002');
 
+SELECT ok((
+  SELECT bool_and(c.relrowsecurity)
+  FROM pg_class AS c
+  WHERE c.oid IN (
+    'public.auth_profiles'::regclass,
+    'public.memberships'::regclass,
+    'public.growta_permissions'::regclass,
+    'public.tenant_roles'::regclass,
+    'public.tenant_role_permissions'::regclass,
+    'public.membership_roles'::regclass,
+    'public.tenant_scope_assignments'::regclass
+  )
+), 'RLS is enabled on every new public table');
+
 SET LOCAL ROLE authenticated;
 SET LOCAL request.jwt.claim.sub = 'c1000000-0000-4000-8000-000000000001';
 
@@ -75,12 +82,39 @@ SELECT ok(private.has_tenant_membership('a1000000-0000-4000-8000-000000000001'),
 SELECT ok(NOT private.has_tenant_membership('a1000000-0000-4000-8000-000000000002'), 'active membership check fails for another tenant');
 SELECT ok(private.has_tenant_permission('a1000000-0000-4000-8000-000000000001', 'test.permission'), 'permission check succeeds for assigned role');
 SELECT ok(NOT private.has_tenant_permission('a1000000-0000-4000-8000-000000000002', 'test.permission'), 'permission check fails across tenants');
+
 SELECT throws_ok(
   $$ INSERT INTO public.memberships (tenant_id, user_id, status)
      VALUES ('a1000000-0000-4000-8000-000000000001',
              'c1000000-0000-4000-8000-000000000001', 'active') $$,
   '42501',
+  'permission denied for table memberships',
   'authenticated user cannot create or self-assign memberships'
+);
+SELECT throws_ok(
+  $$ INSERT INTO public.tenant_roles (tenant_id, code, name)
+     VALUES ('a1000000-0000-4000-8000-000000000001', 'SELF_GRANTED', 'Self Granted') $$,
+  '42501',
+  'permission denied for table tenant_roles',
+  'authenticated user cannot create tenant roles'
+);
+SELECT throws_ok(
+  $$ INSERT INTO public.membership_roles (tenant_id, membership_id, role_id)
+     VALUES ('a1000000-0000-4000-8000-000000000001',
+             'd1000000-0000-4000-8000-000000000001',
+             'e1000000-0000-4000-8000-000000000001') $$,
+  '42501',
+  'permission denied for table membership_roles',
+  'authenticated user cannot assign roles'
+);
+SELECT throws_ok(
+  $$ INSERT INTO public.tenant_scope_assignments (tenant_id, membership_id, organization_id)
+     VALUES ('a1000000-0000-4000-8000-000000000001',
+             'd1000000-0000-4000-8000-000000000001',
+             'b1000000-0000-4000-8000-000000000001') $$,
+  '42501',
+  'permission denied for table tenant_scope_assignments',
+  'authenticated user cannot assign scopes'
 );
 
 UPDATE public.auth_profiles
@@ -91,12 +125,17 @@ SELECT is(
   'RBAC User A Updated',
   'user can update their own safe profile fields'
 );
+
+UPDATE public.auth_profiles
+SET full_name = 'Unauthorized Change'
+WHERE user_id = 'c1000000-0000-4000-8000-000000000002';
+
+RESET ROLE;
 SELECT is(
   (SELECT full_name FROM public.auth_profiles WHERE user_id = 'c1000000-0000-4000-8000-000000000002'),
   'RBAC User B',
   'user cannot update another users profile'
 );
 
-RESET ROLE;
 SELECT * FROM finish();
 ROLLBACK;

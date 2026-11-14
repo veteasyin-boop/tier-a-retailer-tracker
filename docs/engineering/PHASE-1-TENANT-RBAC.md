@@ -30,7 +30,7 @@
 - `private.has_tenant_permission(tenant_id, permission_code)` checks active membership, tenant role assignment, active tenant role, and the mapped permission.
 - Tenant-owned catalogues use composite foreign keys so a role, membership, or scope cannot reference an object from a different tenant.
 - RLS is enabled on every new table. Browser clients can read only their own membership/profile/role/scope context and their tenant's role catalogue. Membership and role-assignment writes are server-only.
-- Scope metadata currently supports the approved domain entities Organization and Territory. Self scope is implicit through membership ownership; broader team/region/state scope needs explicit domain definitions before it is added.
+- Scope metadata currently supports the approved domain entities Organization and Territory. Self scope is implicit in membership ownership; broader team/region/state scope needs explicit domain definitions before it is added.
 
 ## Existing-data mapping
 
@@ -38,22 +38,30 @@
 - Existing `public.role_permissions` mappings are copied per tenant.
 - No rows are inserted into `memberships` or `membership_roles` for legacy `public.users`; an administrator must verify and map each actual Auth identity in a later provisioning workflow.
 
-## Development setup and verification
+## Local development and verification
 
-Requires Docker and Supabase CLI.
+The first migration is a conflict-safe bootstrap snapshot of the repository's existing core schema and Bihar seed:
+
+- `database/schema/001_core_multi_tenant_schema.sql`
+- `database/seeds/001_bihar_initial_seed.sql`
+
+It uses `CREATE TABLE IF NOT EXISTS`, guarded policy creation, and conflict-safe seed inserts. The next migration adds the tenant identity/RBAC tables. The catalog/orders/inventory SQL file is deliberately not included in this phase; it has a separate legacy policy syntax defect that needs its own review.
+
+Requires Docker and the Supabase CLI:
 
 ```bash
 supabase start
 supabase test db
+supabase db lint
 ```
 
-The SQL test suite creates two isolated tenants and two Auth users inside a transaction, verifies cross-tenant RLS, membership and permission checks, scope visibility, and self-service restrictions, then rolls back the fixtures.
+The pgTAP suite creates two isolated tenants and Auth users in a transaction. It verifies RLS activation, cross-tenant visibility, permission checks, and that authenticated users cannot create memberships, roles, role assignments, or scopes. Test fixtures are rolled back.
 
-Apply the migration only to a disposable local/development database during Phase 1 review. Do not run `supabase db push` against production. A production rollout requires a separately approved migration plan, backup/restore rehearsal, and verified Auth-user mapping.
+**Do not link a production project or run `supabase db push` against production.** A production rollout requires a separately approved migration plan, backup/restore rehearsal, and verified Auth-user mapping. The legacy `current_setting('app.current_tenant_id')` policies on pre-existing core tables are preserved for compatibility; they are not the authorization mechanism for the new membership tables and must be replaced with verified membership-based policies before those legacy tables are exposed through the new tenant API.
 
 ## Known follow-up work
 
 1. Build a server-side tenant provisioning/invitation workflow using service-role credentials held only by the NestJS API.
-2. Define and approve the exact identity-management permissions before enabling tenant administrators to invite users or mutate roles/scopes.
-3. Add scope-aware authorization to each domain query/API; membership scope metadata alone does not automatically filter existing operational tables.
+2. Define the exact identity-management permission semantics before enabling tenant administrators to invite users or mutate roles/scopes.
+3. Add scope-aware authorization to each domain query/API; scope metadata alone does not automatically filter existing operational tables.
 4. Add a verified migration process from legacy `public.users` to Auth identities.
