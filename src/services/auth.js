@@ -164,6 +164,16 @@ class AuthService {
     return this.tenantContext;
   }
 
+  async refreshTenantMemberships() {
+    const session = await supabaseService.getCurrentSession();
+    if (!session?.access_token) {
+      this.clearIdentity('signed_out');
+      throw new Error('Your session has expired. Sign in again.');
+    }
+    await this.loadAuthenticatedIdentity(session);
+    return this.getState();
+  }
+
   async signOut() {
     await supabaseService.signOutUser();
     this.clearIdentity('signed_out');
