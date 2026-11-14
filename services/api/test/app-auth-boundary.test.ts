@@ -263,6 +263,10 @@ test("applies tenant predicates to every tenant-scoped identity and RBAC query",
     });
     assert.equal(response.statusCode, 200);
 
+    const tenantLookup = calls.find((call) => call.table === "tenants");
+    assert.ok(tenantLookup, "selected tenant lookup should execute");
+    assert.equal(tenantLookup.filters.id, tenantId, "tenant lookup must use the selected tenant ID");
+
     const tenantScopedTables = [
       "memberships",
       "membership_roles",
