@@ -35,6 +35,12 @@ jobs:
       - name: Run database and RLS tests
         run: supabase test db
 
+      - name: Verify audit keyset filter against local PostgREST
+        working-directory: services/api
+        run: |
+          eval "$(supabase status -o env)"
+          SUPABASE_URL="$API_URL" SUPABASE_SERVICE_ROLE_KEY="$SERVICE_ROLE_KEY" npm run test:postgrest
+
       - name: Stop local Supabase
         if: always() && steps.setup_cli.outcome == 'success'
         run: supabase stop --no-backup
