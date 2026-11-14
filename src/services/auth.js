@@ -3,7 +3,6 @@ import { assertTenantApiConfigured, tenantApiGet } from './apiClient.js';
 import { hasTenantCapability } from './tenantCapabilities.js';
 
 const SELECTED_TENANT_KEY = 'growta_selected_tenant';
-const CURRENT_REP_KEY = 'tat_assigned_rep';
 const ADMIN_SESSION_KEY = 'tat_admin_session';
 const LEGACY_PROTOTYPE_ENABLED = Boolean(
   import.meta.env?.DEV && import.meta.env?.VITE_ENABLE_LEGACY_PROTOTYPE === 'true'
@@ -25,7 +24,6 @@ class AuthService {
     this.status = 'initializing';
     this.error = null;
     this._legacyIsAdmin = LEGACY_PROTOTYPE_ENABLED && sessionStorage.getItem(ADMIN_SESSION_KEY) === 'true';
-    this.currentRep = LEGACY_PROTOTYPE_ENABLED ? (localStorage.getItem(CURRENT_REP_KEY) || '') : '';
     this.authMode = 'tenant';
     this.authSubscription = null;
   }
@@ -297,46 +295,29 @@ class AuthService {
   }
 
   getAssignedRep() {
-    return LEGACY_PROTOTYPE_ENABLED ? (localStorage.getItem(CURRENT_REP_KEY) || '') : '';
+    return '';
   }
 
   isRepAuthenticated() {
-    return LEGACY_PROTOTYPE_ENABLED && Boolean(this.getAssignedRep());
+    return false;
   }
 
-  setAssignedRep(repName) {
-    if (!LEGACY_PROTOTYPE_ENABLED) return;
-    this.currentRep = repName || '';
-    if (repName) localStorage.setItem(CURRENT_REP_KEY, repName);
-    else localStorage.removeItem(CURRENT_REP_KEY);
+  setAssignedRep() {
+    // Representative identity must come from a verified Auth membership.
   }
 
-  loginRep(repName, inputPassword, assistantsList = []) {
-    if (!LEGACY_PROTOTYPE_ENABLED) return { success: false, error: 'Use your individual email and password to sign in.' };
-    const assistant = assistantsList.find((item) => item.name === repName);
-    if (!assistant) return { success: false, error: 'Representative record not found.' };
-    const expectedPassword = typeof assistant.password === 'string' ? assistant.password : '';
-    if (!expectedPassword || String(inputPassword || '') !== expectedPassword) {
-      return { success: false, error: 'No valid local password is configured. Contact the system administrator.' };
-    }
-    this.setAssignedRep(assistant.name);
-    return { success: true, rep: assistant };
+  loginRep() {
+    return { success: false, error: 'Local representative passwords are disabled. Use an individual Supabase Auth account.' };
   }
 
-  logoutRep() {
-    this.setAssignedRep('');
+  logoutRep() {}
+
+  unlockAndResetTerritory() {
+    return false;
   }
 
-  unlockAndResetTerritory(pin) {
-    if (!LEGACY_PROTOTYPE_ENABLED || !this.verifyManagerPin(pin)) return false;
-    this.setAssignedRep('');
-    return true;
-  }
-
-  canModifyRetailer(retailerDoc) {
-    if (this.isAdmin) return true;
-    const rep = this.getAssignedRep();
-    return Boolean(LEGACY_PROTOTYPE_ENABLED && rep && retailerDoc?.assistant === rep);
+  canModifyRetailer() {
+    return this.isAdmin;
   }
 
   // Compatibility alias: never infer role from email or user-editable metadata.
