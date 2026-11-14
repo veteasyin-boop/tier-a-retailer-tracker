@@ -12,7 +12,7 @@ The browser build requires these public environment variables:
 
 Never put `SUPABASE_SERVICE_ROLE_KEY`, database passwords, or other server secrets in a `VITE_*` variable. Vite embeds every `VITE_*` value in the browser bundle.
 
-Production tenant mode is the default and fails closed. The legacy local prototype shell can only be enabled in a Vite development build with `VITE_ENABLE_LEGACY_PROTOTYPE=true`. This switch is not honored in production. A development-only manager PIN, if needed to inspect the old prototype, must be provided through `VITE_LEGACY_MANAGER_PIN`; there is no source-code or browser-storage default.
+Production tenant mode is the default and fails closed. The legacy local prototype shell can only be enabled in a Vite development build with `VITE_ENABLE_LEGACY_PROTOTYPE=true`. This switch is not honored in production. A development-only manager PIN, if needed to inspect the old prototype, must be provided through the non-Vite `LEGACY_MANAGER_PIN` environment variable injected only into the local Vite dev server; there is no source-code or browser-storage default.
 
 ## Sign-in flow
 
