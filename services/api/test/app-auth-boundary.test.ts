@@ -30,6 +30,7 @@ type MockOptions = {
   selectedTenantId?: string;
   permissions?: string[];
   auditRows?: Array<Record<string, unknown>>;
+  availableTenants?: Array<Record<string, unknown>>;
 };
 
 function makeSupabase(options: MockOptions = {}) {
@@ -46,7 +47,8 @@ function makeSupabase(options: MockOptions = {}) {
     membershipStatus = "active",
     selectedTenantId = tenantId,
     permissions = ["organization.read"],
-    auditRows = []
+    auditRows = [],
+    availableTenants = []
   } = options;
 
   const admin = {
@@ -78,6 +80,7 @@ function makeSupabase(options: MockOptions = {}) {
         },
         then(resolve: (result: QueryResult) => unknown, reject?: (reason: unknown) => unknown) {
           let data: any[] = [];
+          if (table === "memberships") data = availableTenants;
           if (table === "membership_roles") data = [{ role_id: roleId }];
           if (table === "tenant_roles") data = [{ id: roleId, code: "CUSTOM_READER" }];
           if (table === "tenant_role_permissions") data = permissions.map((permission_code) => ({
@@ -157,6 +160,60 @@ test("rejects invalid or expired bearer tokens", async () => {
     assert.equal(response.statusCode, 401);
     assert.equal(response.json().error.code, "INVALID_TOKEN");
     assert.equal(calls.length, 0);
+  });
+});
+
+test("tenant discovery requires a valid bearer token but no tenant selector", async (t) => {
+  await t.test("missing bearer token", async () => {
+    await withApp({}, async (app, calls) => {
+      const response = await app.inject({ method: "GET", url: "/api/v1/tenants" });
+      assert.equal(response.statusCode, 401);
+      assert.equal(response.json().error.code, "UNAUTHORIZED");
+      assert.equal(calls.length, 0);
+    });
+  });
+
+  await t.test("invalid bearer token", async () => {
+    await withApp({ tokenValid: false }, async (app, calls) => {
+      const response = await app.inject({
+        method: "GET",
+        url: "/api/v1/tenants",
+        headers: { authorization: "Bearer invalid-token" }
+      });
+      assert.equal(response.statusCode, 401);
+      assert.equal(response.json().error.code, "INVALID_TOKEN");
+      assert.equal(calls.length, 0);
+    });
+  });
+});
+
+test("tenant discovery returns only active memberships and active tenants for the authenticated user", async () => {
+  const availableTenants = [{
+    tenant_id: tenantId,
+    tenants: { id: tenantId, name: "Growta Demo", slug: "growta-demo", is_active: true }
+  }];
+
+  await withApp({ availableTenants }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/tenants",
+      headers: { authorization: "Bearer valid-test-token" }
+    });
+
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().data, [{
+      id: tenantId,
+      name: "Growta Demo",
+      slug: "growta-demo"
+    }]);
+
+    const membershipQuery = calls.find((call) => call.table === "memberships");
+    assert.ok(membershipQuery, "membership discovery query should execute");
+    assert.equal(membershipQuery.filters.user_id, userId);
+    assert.equal(membershipQuery.filters.status, "active");
+    assert.equal(membershipQuery.filters["tenants.is_active"], true);
+    assert.equal(membershipQuery.limit, 100);
+    assert.equal(membershipQuery.filters.tenant_id, undefined, "discovery must not trust a client-selected tenant");
   });
 });
 
