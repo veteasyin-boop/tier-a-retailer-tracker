@@ -32,6 +32,7 @@ type MockOptions = {
 
 function makeSupabase(options: MockOptions = {}) {
   const calls: Array<{ table: string; filters: Record<string, unknown> }> = [];
+  const rpcCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
   const {
     tokenValid = true,
     tenantActive = true,
@@ -77,7 +78,10 @@ function makeSupabase(options: MockOptions = {}) {
       };
       return builder;
     },
-    rpc: async () => ({ data: [], error: null })
+    rpc: async (name: string, args: Record<string, unknown>) => {
+      rpcCalls.push({ name, args });
+      return { data: [], error: null };
+    }
   };
 
   const supabase = {
@@ -91,17 +95,17 @@ function makeSupabase(options: MockOptions = {}) {
     admin
   } as unknown as SupabaseClients;
 
-  return { supabase, calls };
+  return { supabase, calls, rpcCalls };
 }
 
 async function withApp(
   options: MockOptions,
-  run: (app: Awaited<ReturnType<typeof buildApp>>, calls: ReturnType<typeof makeSupabase>["calls"]) => Promise<void>
+  run: (app: Awaited<ReturnType<typeof buildApp>>, calls: ReturnType<typeof makeSupabase>["calls"], rpcCalls: ReturnType<typeof makeSupabase>["rpcCalls"]) => Promise<void>
 ) {
-  const { supabase, calls } = makeSupabase(options);
+  const { supabase, calls, rpcCalls } = makeSupabase(options);
   const app = await buildApp({ config, supabase });
   try {
-    await run(app, calls);
+    await run(app, calls, rpcCalls);
   } finally {
     await app.close();
   }
@@ -200,5 +204,58 @@ test("scopes organization reads to the selected tenant", async () => {
     const organizationQuery = calls.find((call) => call.table === "org_unit_types");
     assert.ok(organizationQuery, "organization query should execute");
     assert.equal(organizationQuery.filters.tenant_id, tenantId);
+  });
+});
+
+
+test("applies tenant predicates to every tenant-scoped identity and RBAC query", async () => {
+  await withApp({}, async (app, calls, rpcCalls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/tenants/me",
+      headers: authHeaders
+    });
+    assert.equal(response.statusCode, 200);
+
+    const tenantScopedTables = [
+      "memberships",
+      "membership_roles",
+      "tenant_roles",
+      "tenant_role_permissions",
+      "membership_org_assignments"
+    ];
+
+    for (const table of tenantScopedTables) {
+      const query = calls.find((call) => call.table === table);
+      assert.ok(query, `expected ${table} query to execute`);
+      assert.equal(query.filters.tenant_id, tenantId, `${table} must be tenant-filtered`);
+    }
+
+    assert.deepEqual(rpcCalls, [{
+      name: "resolve_membership_org_unit_scope",
+      args: { p_tenant_id: tenantId, p_membership_id: membershipId }
+    }]);
+  });
+});
+
+test("applies tenant predicates to all organization collection endpoints", async () => {
+  await withApp({}, async (app, calls) => {
+    const endpoints = [
+      { url: "/api/v1/organization/unit-types", table: "org_unit_types" },
+      { url: "/api/v1/organization/units", table: "org_units" },
+      { url: "/api/v1/organization/designations", table: "designations" }
+    ];
+
+    for (const endpoint of endpoints) {
+      const response = await app.inject({
+        method: "GET",
+        url: endpoint.url,
+        headers: authHeaders
+      });
+      assert.equal(response.statusCode, 200, endpoint.url);
+      const query = calls.find((call) => call.table === endpoint.table);
+      assert.ok(query, `expected ${endpoint.table} query to execute`);
+      assert.equal(query.filters.tenant_id, tenantId, `${endpoint.table} must be tenant-filtered`);
+    }
   });
 });
