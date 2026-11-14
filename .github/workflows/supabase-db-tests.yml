@@ -31,8 +31,16 @@ jobs:
         with:
           version: v3.1.0
 
+      - name: Diagnose Docker and Supabase CLI
+        run: |
+          docker version
+          docker info
+          supabase --version
+
       - name: Start local Supabase
-        run: supabase start
+        run: |
+          set -o pipefail
+          supabase --debug start 2>&1 | tee "${{ runner.temp }}/supabase-start.log"
 
       - name: Run database and RLS tests
         run: supabase test db
