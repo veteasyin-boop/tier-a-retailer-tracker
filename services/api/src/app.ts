@@ -19,6 +19,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     genReqId: () => randomUUID()
   });
 
+  app.decorateRequest("authUser", null);
   app.decorateRequest("tenantContext", null);
   await app.register(cors, { origin: config.corsOrigins, credentials: false });
   await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
@@ -51,12 +52,13 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     meta: { timestamp: new Date().toISOString(), version: "v1" }
   }));
 
-  // Parent hook applies to registered route plugins. Health is the only public route.
+  // Every non-health route requires a verified Supabase user. Tenant discovery
+  // is the sole authenticated route that intentionally runs before tenant selection.
   app.addHook("preHandler", async (request, reply) => {
     if (request.routeOptions.url === "/health") return;
 
     const authorization = request.headers.authorization;
-    const bearerMatch = authorization?.trim().match(/^Bearer\s+(\S+)$/i);
+    const bearerMatch = authorization?.trim().match(/^Bearer\\s+(\\S+)$/i);
     if (!bearerMatch) {
       return reply.code(401).send({
         success: false,
@@ -83,6 +85,10 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       });
     }
 
+    request.authUser = data.user;
+
+    if (request.routeOptions.url === "/api/v1/tenants") return;
+
     try {
       const tenantId = parseTenantId(request.headers["x-tenant-id"]);
       request.tenantContext = await resolveTenantContext(supabase.admin, data.user, tenantId);
@@ -100,7 +106,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
 
   await app.register(organizationRoutes, { prefix: "/api/v1/organization", supabase });
   await app.register(auditRoutes, { prefix: "/api/v1", supabase });
-  await app.register(tenantRoutes, { prefix: "/api/v1" });
+  await app.register(tenantRoutes, { prefix: "/api/v1", supabase });
 
   return app;
 }
