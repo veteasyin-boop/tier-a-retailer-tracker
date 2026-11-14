@@ -39,11 +39,11 @@ select private.has_tenant_permission(:'tenant_a'::uuid, 'organization.read') as 
   \quit 1
 \endif
 
-select count(*) as tenant_b_visible
+select count(*) = 0 as cross_tenant_isolation
 from public.tenant_org_units
 where tenant_id = :'tenant_b'::uuid
 \gset
-\if :tenant_b_visible = 0
+\if :cross_tenant_isolation
   \echo 'PASS: user A cannot read tenant B organizational units'
 \else
   \echo 'FAIL: cross-tenant rows are visible'
@@ -51,11 +51,11 @@ where tenant_id = :'tenant_b'::uuid
   \quit 1
 \endif
 
-select count(*) as tenant_a_visible
+select count(*) > 0 as tenant_a_visible
 from public.tenant_org_units
 where tenant_id = :'tenant_a'::uuid
 \gset
-\if :tenant_a_visible > 0
+\if :tenant_a_visible
   \echo 'PASS: user A can read tenant A organizational units'
 \else
   \echo 'FAIL: expected tenant A organizational units were not visible'
