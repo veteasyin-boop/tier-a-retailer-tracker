@@ -91,7 +91,7 @@ async function bootstrap() {
       } else if (pendingCount > 0) {
         storageLabel.textContent = isOnline ? `Queued (${pendingCount})` : `Offline (${pendingCount})`;
       } else {
-        storageLabel.textContent = isOnline ? 'Supabase Connected' : 'Offline Mode';
+        storageLabel.textContent = syncEnabled ? (isOnline ? 'Supabase Connected' : 'Offline Mode') : 'Secure Sync Pending';
       }
     }
     if (storagePill) {
