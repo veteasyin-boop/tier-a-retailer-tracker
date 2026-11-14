@@ -78,3 +78,12 @@ Legacy browser auth, Supabase client adapter, offline storage/sync queue, assist
 ## Blocking status
 
 **Blocking before multi-tenant onboarding and before exposing legacy operational tables to new tenant users.** Do not claim the legacy browser data plane is protected by the new API's tenant authorization. Do not change existing production policies or credentials as part of this documentation task.
+ 
+
+## Mitigation implemented on the development branch (2026-11-15)
+
+The production browser entry point now defaults to the tenant-authentication shell and does **not** call `storage.init()`, render the legacy field/admin views, or expose the legacy direct-Supabase operational client. The old prototype shell is enabled only in Vite development builds with the explicit `VITE_ENABLE_LEGACY_PROTOTYPE=true` flag; that flag is not honored in production.
+
+The new UI uses Supabase Auth email/password, then the authenticated `GET /api/v1/tenants` endpoint and explicit tenant selection. Tenant-scoped context is loaded from `GET /api/v1/tenants/me`. Local PINs, default representative passwords, email-substring role inference, and the plaintext password display were removed from the production path.
+
+**This is a containment measure, not completion of the legacy data-plane migration.** Existing operational records still lack verified Auth identity and tenant ownership. The operational workspace remains intentionally locked after tenant selection until data ownership, RLS, API reads/writes, and org-scope rules are migrated. OQ-0004 therefore remains blocking for multi-tenant operational onboarding.
