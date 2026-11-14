@@ -6,7 +6,7 @@ import type { AppConfig } from "./config.js";
 import type { SupabaseClients } from "./platform/supabase.js";
 import { parseTenantId, resolveTenantContext, TenantContextError, type TenantContext } from "./modules/identity/tenant-context.js";
 import { permissionPreHandler } from "./modules/authorization/require-permission.js";
-import { auditListQuerySchema } from "./modules/audit/audit.schemas.js";
+import { auditCursorSchema, auditListQuerySchema } from "./modules/audit/audit.schemas.js";
 
 declare module "fastify" {
   interface FastifyRequest {
@@ -130,15 +130,33 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       });
     }
 
+    let cursor: { createdAt: string; id: string } | null = null;
+    if (parsed.data.cursor) {
+      try {
+        const decoded = JSON.parse(Buffer.from(parsed.data.cursor, "base64url").toString("utf8")) as unknown;
+        const cursorResult = auditCursorSchema.safeParse(decoded);
+        if (!cursorResult.success) throw new Error("Invalid cursor");
+        cursor = cursorResult.data;
+      } catch {
+        return reply.code(400).send({
+          success: false,
+          error: { code: "INVALID_CURSOR", message: "Audit cursor is invalid", details: [] },
+          meta: { requestId: request.id, timestamp: new Date().toISOString() }
+        });
+      }
+    }
+
     let query = supabase.admin
       .from("growta_audit_events")
       .select("id,actor_user_id,request_id,action,entity_type,entity_id,before_data,after_data,metadata,created_at")
       .eq("tenant_id", context.tenantId)
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
-      .limit(parsed.data.limit);
+      .limit(parsed.data.limit + 1);
 
-    if (parsed.data.before) query = query.lt("created_at", parsed.data.before);
+    if (cursor) {
+      query = query.or(`created_at.lt.${cursor.createdAt},and(created_at.eq.${cursor.createdAt},id.lt.${cursor.id})`);
+    }
     if (parsed.data.entityType) query = query.eq("entity_type", parsed.data.entityType);
 
     const { data, error } = await query;
@@ -151,15 +169,23 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       });
     }
 
+    const rows = data ?? [];
+    const hasMore = rows.length > parsed.data.limit;
+    const page = hasMore ? rows.slice(0, parsed.data.limit) : rows;
+    const last = page.length ? page[page.length - 1] : null;
+    const nextCursor = hasMore && last
+      ? Buffer.from(JSON.stringify({ createdAt: last.created_at, id: last.id }), "utf8").toString("base64url")
+      : null;
+
     return {
       success: true,
-      data: data ?? [],
+      data: page,
       meta: {
         requestId: request.id,
         timestamp: new Date().toISOString(),
         version: "v1",
         limit: parsed.data.limit,
-        nextBefore: data?.length ? data[data.length - 1]?.created_at ?? null : null
+        nextCursor
       }
     };
   });
