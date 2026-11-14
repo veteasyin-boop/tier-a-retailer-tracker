@@ -29,6 +29,7 @@ type MockOptions = {
   membershipStatus?: string | null;
   selectedTenantId?: string;
   permissions?: string[];
+  scopeUnitIds?: string[];
   auditRows?: Array<Record<string, unknown>>;
   availableTenants?: Array<Record<string, unknown>>;
 };
@@ -47,6 +48,7 @@ function makeSupabase(options: MockOptions = {}) {
     membershipStatus = "active",
     selectedTenantId = tenantId,
     permissions = ["organization.read"],
+    scopeUnitIds = [],
     auditRows = [],
     availableTenants = []
   } = options;
@@ -96,7 +98,7 @@ function makeSupabase(options: MockOptions = {}) {
     },
     rpc: async (name: string, args: Record<string, unknown>) => {
       rpcCalls.push({ name, args });
-      return { data: [], error: null };
+      return { data: scopeUnitIds.map((org_unit_id) => ({ org_unit_id })), error: null };
     }
   };
 
@@ -292,6 +294,38 @@ test("denies an authenticated tenant member without the required permission", as
     });
     assert.equal(response.statusCode, 403);
     assert.equal(response.json().error.code, "PERMISSION_DENIED");
+  });
+});
+
+
+test("organizational unit reads are limited to explicitly assigned scope IDs", async () => {
+  const allowedUnitId = "f1000000-0000-4000-8000-000000000001";
+  const otherUnitId = "f1000000-0000-4000-8000-000000000002";
+  await withApp({ scopeUnitIds: [allowedUnitId] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/organization/units",
+      headers: authHeaders
+    });
+    assert.equal(response.statusCode, 200);
+    const query = calls.find((call) => call.table === "org_units");
+    assert.ok(query, "organizational unit query should execute");
+    assert.equal(query.filters.tenant_id, tenantId);
+    assert.deepEqual(query.filters.id, [allowedUnitId]);
+    assert.notEqual(query.filters.id, otherUnitId);
+  });
+});
+
+test("organizational unit reads fail closed when the member has no explicit scope", async () => {
+  await withApp({ scopeUnitIds: [] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/organization/units",
+      headers: authHeaders
+    });
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.json().data, []);
+    assert.equal(calls.some((call) => call.table === "org_units"), false);
   });
 });
 

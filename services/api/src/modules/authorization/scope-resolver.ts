@@ -33,8 +33,9 @@ export function resolveScopeUnitIds(
     if (!assignment.include_descendants) continue;
 
     const queue = [...(childrenByParent.get(assignment.org_unit_id) ?? [])];
-    while (queue.length > 0) {
-      const next = queue.shift();
+    // A cursor avoids Array.shift()'s repeated re-indexing on wide org trees.
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const next = queue[cursor];
       if (!next || resolved.has(next)) continue;
       resolved.add(next);
       queue.push(...(childrenByParent.get(next) ?? []));

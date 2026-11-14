@@ -38,3 +38,19 @@ test("deduplicates overlapping scopes", () => {
     ["child", "root"]
   );
 });
+
+
+test("expands a wide hierarchy without repeated front-of-array removal", () => {
+  const units = [
+    { id: "root", parent_id: null },
+    ...Array.from({ length: 2000 }, (_, index) => ({
+      id: `child-${index}`,
+      parent_id: "root"
+    }))
+  ];
+  const resolved = resolveScopeUnitIds(
+    [{ org_unit_id: "root", include_descendants: true }],
+    units
+  );
+  assert.equal(resolved.length, 2001);
+});

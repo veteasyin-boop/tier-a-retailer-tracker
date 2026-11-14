@@ -22,7 +22,10 @@ export const tenantRoutes: FastifyPluginAsync<TenantRouteOptions> = async (app, 
       throw new TenantContextError(500, "TENANT_DISCOVERY_FAILED", "Unable to list available tenant memberships");
     }
 
-    const tenants = (data ?? []).flatMap((row: any) => {
+    type TenantRecord = { id: string; name: string; slug: string; is_active: boolean };
+    type TenantMembershipRecord = { tenant_id: string; tenants: TenantRecord | TenantRecord[] | null };
+    const membershipRows = (data ?? []) as TenantMembershipRecord[];
+    const tenants = membershipRows.flatMap((row) => {
       const tenant = Array.isArray(row.tenants) ? row.tenants[0] : row.tenants;
       if (!tenant || tenant.is_active !== true) return [];
       return [{

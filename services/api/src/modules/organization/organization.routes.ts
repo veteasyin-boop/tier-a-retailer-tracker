@@ -47,9 +47,21 @@ export const organizationRoutes: FastifyPluginAsync<RouteOptions> = async (app, 
     }
     const context = request.tenantContext;
     if (!context) return reply.code(401).send({ success: false, error: { code: "UNAUTHORIZED", message: "Tenant context is required", details: [] } });
+
+    // Primary placement is descriptive, not an authorization grant. An empty
+    // explicit scope therefore fails closed instead of returning the tenant tree.
+    if (context.scopedOrgUnitIds.length === 0) {
+      return {
+        success: true,
+        data: [],
+        meta: { requestId: request.id, timestamp: new Date().toISOString(), version: "v1", limit: parsed.data.limit, offset: parsed.data.offset, total: 0 }
+      };
+    }
+
     let query = supabase.admin.from("org_units")
       .select("id,tenant_id,unit_type_id,parent_id,code,name,description,is_active,created_at,updated_at", { count: "exact" })
       .eq("tenant_id", context.tenantId)
+      .in("id", context.scopedOrgUnitIds)
       .order("code", { ascending: true })
       .range(parsed.data.offset, parsed.data.offset + parsed.data.limit - 1);
     if (parsed.data.includeInactive !== "true") query = query.eq("is_active", true);
