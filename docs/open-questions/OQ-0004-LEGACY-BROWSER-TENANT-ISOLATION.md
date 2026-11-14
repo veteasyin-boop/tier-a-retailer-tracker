@@ -24,6 +24,19 @@ How will the existing single-tenant browser/PWA data plane be migrated to authen
 
 These findings describe checked-in source. The read-only diagnostic `supabase/diagnostics/tenant-rls-access-inventory.sql` must also be run against the actual development project to inventory deployed grants, policies, RLS flags, indexes, and SECURITY DEFINER functions. The deployed state may differ from the source snapshots.
 
+## Authentication decision
+
+The product owner selected **existing email/password sign-in** as the retained user-facing authentication method. The accepted implementation decision is recorded in `docs/adr/ADR-0003-supabase-auth-email-password.md`.
+
+This means:
+- Supabase Auth `signInWithPassword` is the only supported authentication authority for tenant users.
+- Each person receives an individual Auth account; local manager PINs, shared representative passwords, plaintext `assistants.password`, email-substring role inference, and user-editable metadata are not trusted.
+- After sign-in, the client discovers active memberships through `GET /api/v1/tenants`, then selects a tenant from that server response.
+- Legacy credentials are not imported. The migration uses verified identity reconciliation and a password-reset/invitation flow.
+- The legacy login remains isolated to the controlled single-tenant prototype until the API-backed UI and identity mapping are ready.
+
+The authentication-method decision is resolved. The actual mapping of legacy representative rows to verified email addresses and Auth user IDs, and the operator responsible for that reconciliation, remain unresolved.
+
 ## Why it matters
 
 The current prototype is not safe to treat as a multi-tenant application boundary. A browser client can invoke Supabase APIs directly; broad policies can expose or mutate data independently of the new API's tenant checks. Tables without tenant identity cannot be isolated by tenant RLS. Client-side PINs, local-storage representative selection, and user-editable metadata do not establish server-side identity or authorization.
@@ -53,7 +66,7 @@ Migration sequence:
 ## Decisions required
 
 - Confirm whether the existing prototype remains single-tenant during the migration.
-- Confirm the canonical business identity for an assistant/field representative and the owner of that identity lifecycle.
+- Define the canonical mapping from each legacy assistant/representative row to a verified individual email address and Supabase Auth user ID, and identify who verifies and approves that mapping.
 - Approve the data migration and retention policy for legacy passwords, attendance, GPS check-ins, farmer/retailer records, and offline queues.
 - Define which roles may read or mutate each operational domain and how org scopes filter those records.
 - Approve the offline queue's account-switch behavior, idempotency contract, conflict policy, and dead-letter recovery UX.
