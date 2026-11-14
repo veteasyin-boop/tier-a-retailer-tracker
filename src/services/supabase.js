@@ -100,6 +100,11 @@ class SupabaseService {
     });
   }
 
+  async updatePassword(password) {
+    if (!this.client) throw new Error('Supabase client is not initialized.');
+    return await this.client.auth.updateUser({ password });
+  }
+
   async resetPasswordForEmail(email, redirectTo) {
     if (!this.client) throw new Error('Supabase client is not initialized.');
     return await this.client.auth.resetPasswordForEmail(email, { redirectTo });
