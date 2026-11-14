@@ -194,62 +194,15 @@ export function renderFieldView(container, allRows) {
 }
 
 function renderRepLoginScreen(container) {
-  const assistants = storage.getAssistants();
   container.innerHTML = `
-    <div class="card" style="text-align: center; padding: 36px 24px; max-width: 540px; margin: 30px auto; box-shadow: var(--shadow-lg);">
-      <div style="font-size: 46px; margin-bottom: 10px; animation: pulse-dot 2s infinite ease-in-out;">🌾</div>
-      <h2 style="font-family: var(--font-heading); font-size: 22px; font-weight: 700; margin-bottom: 6px;">
-        Field Representative / MGO Login
-      </h2>
-      <p style="color: var(--muted); font-size: 13.5px; line-height: 1.5; margin-bottom: 22px;">
-        Select your assigned field station and enter your password to access field activities, farmer meetings, and demo plots.
+    <div class="card" style="text-align:center; padding:36px 24px; max-width:540px; margin:30px auto;">
+      <div style="font-size:42px; margin-bottom:10px;">🔐</div>
+      <h2 style="font-family:var(--font-heading); font-size:21px; margin-bottom:8px;">Individual account required</h2>
+      <p style="color:var(--muted); font-size:13px; line-height:1.6;">
+        Local representative passwords have been disabled. Field access must use an individual Supabase Auth account with a verified tenant membership. The legacy prototype is not connected to tenant operational data.
       </p>
-
-      <form id="repLoginForm" style="text-align: left; display: flex; flex-direction: column; gap: 14px;">
-        <div class="form-group">
-          <label class="form-label">Select Field Assistant / Station *</label>
-          <select id="repLoginSelect" required style="padding: 10px 12px; font-size: 14px;">
-            <option value="">Choose your station…</option>
-            ${assistants.map(a => `
-              <option value="${escapeHtml(a.name)}">
-                ${escapeHtml(a.name)} — ${escapeHtml(a.hq)} HQ (${escapeHtml(a.district)})
-              </option>
-            `).join('')}
-          </select>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label">Station Password *</label>
-          <input type="password" id="repLoginPassword" required placeholder="Enter your assigned password" style="padding: 10px 12px; font-size: 14px;">
-          <span style="font-size: 11.5px; color: var(--muted); margin-top: 4px;">
-            🔒 Use the individual credential issued to you.
-          </span>
-        </div>
-
-        <div id="repLoginError" style="color: var(--danger); font-size: 12.5px; font-weight: 600; min-height: 18px;"></div>
-
-        <button type="submit" class="btn btn-primary" id="btnRepLoginSubmit" style="padding: 12px; font-size: 15px; border-radius: var(--radius-sm); margin-top: 4px; font-weight: 700;">
-          Log In to Field Station →
-        </button>
-      </form>
     </div>
   `;
-
-  document.getElementById('repLoginForm')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const repName = document.getElementById('repLoginSelect').value;
-    const password = document.getElementById('repLoginPassword').value;
-    const res = auth.loginRep(repName, password, storage.getAssistants());
-
-    if (res.success) {
-      showToast(`Welcome, ${repName}! Station unlocked.`, '🌾');
-      window.dispatchEvent(new CustomEvent('tracker:roleChanged'));
-      renderFieldView(container, storage.rows);
-    } else {
-      const errEl = document.getElementById('repLoginError');
-      if (errEl) errEl.textContent = res.error;
-    }
-  });
 }
 
 function renderRefreshLanding(container, repInfo) {
