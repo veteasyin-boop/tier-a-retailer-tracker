@@ -14,4 +14,5 @@
 | OQ-0004 | Legacy browser data-plane tenant isolation and authentication | Legacy field operations / multi-tenancy | Blocking before multi-tenant onboarding | 2026-11-15 |
 | OQ-0005 | Offline sync identity binding, idempotency, and rejected-operation recovery | Field Shell / offline sync / API mutations | Blocking before operational write endpoints | 2026-11-15 |
 | OQ-0006 | Mapping legacy field/admin UI capabilities to tenant permissions | Legacy UI / authorization / tenant RBAC | Blocking before tenant UI cutover | 2026-11-15 |
-| OQ-0007 | Tenant API and Supabase project alignment | Identity / tenant API / database deployment | Blocking before live migration or API implementation | 2026-11-15 |\n| OQ-0008 | Legacy operational schema has no effective tenant isolation | Database security / catalog / inventory / orders | Critical blocker before tenant exposure | 2026-11-15 |
+| OQ-0007 | Production Supabase project alignment | Identity / tenant API / database deployment | Blocking before hosted migration or production rollout | 2026-11-15 |
+| OQ-0008 | Legacy operational schema has no effective tenant isolation | Database security / catalog / inventory / orders | Critical blocker before tenant exposure | 2026-11-15 |

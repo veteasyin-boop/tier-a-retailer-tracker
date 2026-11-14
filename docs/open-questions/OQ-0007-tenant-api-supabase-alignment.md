@@ -1,44 +1,38 @@
-# OQ-0007: Tenant API and Supabase Project Alignment
+# OQ-0007: Production Supabase Project Alignment
 
 **Module:** Identity / tenant API / database deployment  
-**Status:** Blocking  
-**Date:** 2026-11-15
+**Status:** Blocking for live database rollout; resolved for repository/API source alignment  
+**Updated:** 2026-11-15
 
-## Question & Context
+## Resolution
 
-Which backend repository and Supabase project are the source of truth for the tenant API used by this frontend?
+The tenant API source of truth for this codebase is now identified: `services/api` in this repository, on branch `growta-one/phase-2-dynamic-organogram`. It is a TypeScript + Fastify service, not NestJS. Its tenant discovery and tenant-context endpoints are documented in `docs/api/TENANT_DISCOVERY_API_CONTRACT.md`.
 
-The current frontend calls `VITE_API_BASE_URL/api/v1/tenants` and `/tenants/me`, and authenticates with Supabase email/password. The inspected Git repository contains the tenant-aware client flow but no corresponding API server implementation in the inspected paths. The configured Supabase project reference embedded in the legacy client does not match the projects visible in the connected Supabase account.
+The canonical schema history is `supabase/migrations/`. The standalone `database/schema/003_tenant_organogram_dynamic_rbac.sql` proposal was a separate, incompatible model and has been moved to `database/legacy-nondeployable/` for reference only.
+
+## Remaining question
+
+Which Supabase project reference is the intended development/staging/production target for this API, and which existing project contains the authoritative legacy tenant and operational data?
+
+Do not send service-role keys or database passwords. A project reference and confirmation of environment ownership are sufficient to plan the next controlled validation.
 
 ## Why it matters
 
-The dynamic organogram migration references `public.tenants` and Supabase Auth `auth.users`. Applying it to the wrong project, or to a database with a different tenant membership schema, can create an isolated parallel identity model or break tenant authorization.
+The migration chain references Supabase Auth `auth.users` and existing Growta tenant tables. Running it against the wrong project could create a parallel identity model, conflict with existing tables, or expose operational data incorrectly.
 
-## Options considered
+## Options
 
-1. **Identify the actual tenant API repository and its Supabase project** — preferred. Align schema, API, RLS, and deployment in one source of truth.
-2. **Adopt the configured legacy frontend Supabase project** — only after confirming ownership, schema, and tenant API compatibility.
-3. **Create a separate Growta Supabase project** — only after explicit project and cost approval; requires a deliberate migration and identity/data migration plan.
+1. **Use the existing authoritative Supabase project** after read-only schema/policy inventory, migration-history comparison, and verified Auth identity mapping.
+2. **Use a separate development project** for migration rehearsal, with explicit approval and no production data copied unless appropriately protected.
+3. **Create a new production project** only after data migration, identity mapping, backup, rollback, and cost plans are approved.
 
-## Affected modules
+## Blocking boundary
 
-- Supabase Auth and tenant discovery
-- Tenant membership and owner bootstrap
-- Dynamic organogram and RBAC
-- Operational data isolation
-- API deployment and environment configuration
+This question blocks linking a hosted project, applying migrations to a hosted database, production tenant provisioning, and production deployment. It does not block repository-only development, local Supabase tests, or static security work.
 
-## Blocking vs. non-blocking
+## Required evidence before live rollout
 
-**Blocking** before applying migration to a live database, implementing production tenant API endpoints, or enabling organizational administration UI.
-
-
-## Repository reconnaissance update — 2026-11-15
-
-The connected GitHub account was searched for likely Growta backend repositories. Repositories named `Growta` and `Growta-Agri` currently expose AI Studio application starter READMEs, while `Growtaa` is empty and `Growtaaa` contains a separate FieldProof build pack. None was verified as the tenant API implementation for this frontend.
-
-The repository's current frontend contract has now been documented in `docs/api/TENANT_DISCOVERY_API_CONTRACT.md`. It records the two existing GET calls and the exact minimum response fields consumed by `src/services/auth.js`. This does not resolve the backend location or Supabase project.
-
-## Required owner input to unblock implementation
-
-Provide the repository URL that contains the deployed `/api/v1/tenants` service, or confirm that no backend exists and explicitly authorize creating a new NestJS API in a named repository. Also identify the Supabase project reference used by that service. Do not share service-role keys or other secrets in chat.
+- Confirmed project reference and environment (development, staging, or production).
+- Read-only inventory of existing tables, RLS flags, policies, grants, indexes, functions, and migration history.
+- Reconciled schema drift and a tested migration/rollback plan.
+- Verified mapping from existing application users to Supabase Auth identities; never infer identity matches from email or display name alone.

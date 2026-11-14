@@ -1,3 +1,6 @@
+-- ARCHIVED / DO NOT EXECUTE.
+-- This historical snapshot contains invalid CREATE POLICY IF NOT EXISTS syntax,
+-- permissive USING (true) policies, and no safe tenant isolation. See database/README.md.
 -- =========================================================================
 -- GROWTA ENTERPRISE: CATALOG, ORDERS & INVENTORY LEDGER SCHEMA (COMPATIBLE)
 -- Authority: GROWTA-MASTER-PRD-001 (Sections 31, 32, 33, 34 — Modules 12, 13, 14, 15)

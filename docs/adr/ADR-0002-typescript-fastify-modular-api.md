@@ -1,51 +1,54 @@
 # ADR-0002: TypeScript Fastify Modular API
 
-**Status:** Accepted for the development branch  
+**Status:** Accepted; implementation in progress  
 **Date:** 2026-11-15  
 **Authority:** GROWTA-MASTER-PRD-001 §§5–7; TECHNOLOGY-BASELINE; GROWTA-API-SPEC-001
 
 ## Context
 
-Growta requires a trusted server-side boundary for tenant identity, authorization, organizational data scopes, transactional mutations, and audit logging. The current repository is a Vite/vanilla-JavaScript prototype with Supabase client integration; it does not contain a backend service.
+Growta is evolving a Vite/vanilla-JavaScript field-sales prototype into a multi-tenant operating system. The repository now contains a TypeScript + Fastify API under `services/api`; the frontend remains the existing Vite application. Supabase PostgreSQL is the system of record and Supabase Auth remains the identity provider.
 
-The approved technology baseline permits a Fastify or FastAPI service layer. The dynamic organization document previously referred to NestJS, but no NestJS application or dependency exists in this repository. The backend framework must be made explicit before implementation.
+The API foundation currently implements verified Supabase bearer authentication, tenant selection and active-membership validation, tenant-specific role/permission resolution, organization metadata reads, and audit-event reads. It does **not** yet implement tenant provisioning, role/organization administration, operational data APIs, mutation/audit transactions, or offline write synchronization.
+
+The dynamic-organogram model is implemented in the canonical `supabase/migrations/` chain. The separate historical SQL proposal under `database/schema/003` used a different identity model and is not compatible with the API.
 
 ## Decision
 
-Build the first backend as a **TypeScript + Fastify modular monolith** under `services/api`.
+Use a **TypeScript + Fastify modular monolith** under `services/api`.
 
-- Use the existing Node.js 22+ runtime baseline.
-- Keep the Vite prototype intact; do not rewrite or relocate it as part of API foundation work.
+- Keep the Vite prototype intact; productize existing workflows incrementally.
 - Keep Supabase PostgreSQL as the system of record and Supabase Auth as the identity provider.
 - Keep domain modules in one deployable API process initially.
-- Use explicit modules for identity, tenancy, authorization, organization, audit, and health/diagnostics.
-- Use request-scoped authenticated identity and validated tenant context. `X-Tenant-ID` is a selector only, never proof of membership.
-- Use a server-only Supabase service credential for privileged writes; never expose it to browser/PWA code.
-- Preserve database RLS as a second authorization boundary. API checks do not replace RLS.
+- Keep modules explicit for identity, tenancy, authorization, organization, audit, operational domains, and diagnostics.
+- Treat `X-Tenant-ID` as a selector only, never proof of membership.
+- Keep the Supabase service-role credential server-side only.
+- Preserve database RLS as a second authorization boundary. Because service-role queries bypass RLS, every API query must also enforce tenant and organizational scope in server-side code.
 - Add a separate worker only when asynchronous workload or isolation justifies it.
+- Keep `supabase/migrations/` as the sole deployable schema history.
 
 ## Why Fastify
 
-Fastify is directly aligned with the approved Node service-layer baseline, supports TypeScript, has a small runtime footprint, and avoids introducing a heavier application framework before the domain boundaries and service contracts are established. Domain modules and dependency boundaries will be explicit in repository code rather than relying on framework conventions.
+Fastify aligns with the approved Node service-layer baseline, supports TypeScript, and has a small runtime footprint. Domain boundaries remain explicit in repository code rather than relying on a heavier framework convention.
 
 ## Consequences
 
-- A new TypeScript API package and its pinned dependencies are required.
-- Existing browser code must continue using only publishable/anon Supabase credentials.
-- The API must verify Supabase JWTs, resolve active membership for the selected tenant, evaluate tenant permissions, resolve explicit data scopes, and write audit records for mutations.
-- No operational data endpoint may be exposed until its RLS policy and API authorization are tested together.
+- Existing browser code continues to use only publishable/anon Supabase credentials.
+- The API verifies Supabase JWTs, resolves active tenant membership, evaluates tenant-specific permissions, and enforces explicit data scopes.
+- No operational endpoint is enabled until its tenant predicate, scope filter, RLS posture, and cross-tenant tests are in place.
 - NestJS is not part of this repository's API runtime unless a future ADR supersedes this decision.
+- Legacy workflows must not be removed while their API-backed replacements are incomplete.
 
 ## Security constraints
 
 - Never trust tenant IDs, user IDs, role codes, org-unit IDs, or scopes supplied by clients.
-- Never use a service-role credential in the browser.
-- Validate all request bodies, path parameters, query parameters, and headers.
-- Apply rate limits to authentication-adjacent and mutation endpoints.
-- Use parameterized database operations; no string-built SQL.
-- Log request IDs and security-relevant outcomes without logging bearer tokens or secrets.
-- Enforce tenant predicates and database RLS on every tenant-owned query.
+- Never expose service-role credentials to browser/PWA code.
+- Validate request bodies, path parameters, query parameters, and headers.
+- Apply rate limits to authentication-adjacent and mutation endpoints; configure proxy trust only for known trusted proxy hops.
+- Use parameterized database operations; never construct SQL from user input.
+- Log request IDs and security-relevant outcomes without bearer tokens or secrets.
+- Enforce tenant predicates and organizational scopes on every tenant-owned API query.
+- Make business mutations and immutable audit events atomic (transaction or database function).
 
 ## Verification gate
 
-The API foundation is accepted only after type-check, lint, unit tests, integration tests against local Supabase, JWT verification tests, cross-tenant denial tests, permission-denial tests, and audit-atomicity tests pass. No production deployment is authorized by this ADR.
+The API is not production-ready until type-check, unit tests, local Supabase integration tests, JWT tests, cross-tenant denial tests, scope-denial tests, permission-denial tests, mutation/audit atomicity tests, and offline idempotency tests pass. No production deployment is authorized by this ADR.
