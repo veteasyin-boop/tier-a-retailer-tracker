@@ -27,6 +27,10 @@ CREATE INDEX IF NOT EXISTS idx_growta_audit_tenant_actor
 ALTER TABLE public.growta_audit_events ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON TABLE public.growta_audit_events FROM PUBLIC, anon, authenticated;
+-- Supabase default privileges may grant broad table access to service_role.
+-- Explicitly remove mutation privileges before granting append-only access.
+REVOKE UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER
+  ON TABLE public.growta_audit_events FROM service_role;
 GRANT SELECT, INSERT ON TABLE public.growta_audit_events TO service_role;
 
 -- Audit events are append-only. API service_role is the only writer.
