@@ -112,9 +112,8 @@ export async function resolveTenantContext(
     designations?: { id: string; code: string; name: string } | null;
   } | null;
 
-  const scopedOrgUnitIds = [...new Set(
-    (scopesResult.data ?? []).map((row) => row.org_unit_id as string)
-  )].sort();
+  const scopeRows = (scopesResult.data ?? []) as { org_unit_id: string }[];
+  const scopedOrgUnitIds: string[] = [...new Set(scopeRows.map((row) => row.org_unit_id))].sort();
 
   return {
     tenantId,
