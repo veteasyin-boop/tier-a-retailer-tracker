@@ -18,6 +18,7 @@ How will the existing single-tenant browser/PWA data plane be migrated to authen
 5. `src/services/auth.js` contains a default manager PIN (`2026`), persists the manager flag in browser session storage, stores the selected representative in local storage, and compares representative passwords in browser code.
 6. `supabase_schema.sql` includes a plaintext `assistants.password` column with default `rep123`; `src/services/supabase.js` reads and writes that field.
 7. The legacy operational schema does not have a verified mapping from its assistant/representative identity to `auth.users` and the new tenant membership model.
+8. `supabase_schema.sql` and `supabase_schema_rls.sql` are divergent snapshots of overlapping tables (including `assistants`, `retailers`, and `check_in_logs`). A migration cannot safely assume either file exactly matches the deployed database.
 
 These findings describe checked-in source. The read-only diagnostic `supabase/diagnostics/tenant-rls-access-inventory.sql` must also be run against the actual development project to inventory deployed grants, policies, RLS flags, indexes, and SECURITY DEFINER functions. The deployed state may differ from the source snapshots.
 
