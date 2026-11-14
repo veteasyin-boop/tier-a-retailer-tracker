@@ -390,3 +390,37 @@ test("applies tenant predicates to all organization collection endpoints", async
     }
   });
 });
+
+
+test("authentication hook protects every extracted route plugin", async () => {
+  await withApp({}, async (app, calls) => {
+    const paths = [
+      "/api/v1/tenants/me",
+      "/api/v1/organization/unit-types",
+      "/api/v1/organization/units",
+      "/api/v1/organization/designations",
+      "/api/v1/audit-events"
+    ];
+
+    for (const url of paths) {
+      const response = await app.inject({ method: "GET", url });
+      assert.equal(response.statusCode, 401, `${url} must require authentication`);
+      assert.equal(response.json().error.code, "UNAUTHORIZED", url);
+    }
+    assert.equal(calls.length, 0, "unauthenticated requests must not query tenant data");
+  });
+});
+
+test("audit route denies members without audit.read", async () => {
+  await withApp({ permissions: ["organization.read"] }, async (app, calls) => {
+    const response = await app.inject({
+      method: "GET",
+      url: "/api/v1/audit-events",
+      headers: authHeaders
+    });
+
+    assert.equal(response.statusCode, 403);
+    assert.equal(response.json().error.code, "PERMISSION_DENIED");
+    assert.equal(calls.some((call) => call.table === "growta_audit_events"), false);
+  });
+});
