@@ -12,6 +12,7 @@ import { membershipRoutes } from "./modules/memberships/membership.routes.js";
 import { membershipAdminRoutes } from "./modules/memberships/membership-admin.routes.js";
 import { roleRoutes } from "./modules/roles/role.routes.js";
 import { roleUpdateRoutes } from "./modules/roles/role-update.routes.js";
+import { platformAdminRoutes } from "./modules/platform-admin/platform-admin.routes.js";
 
 type Dependencies = { config: AppConfig; supabase: SupabaseClients };
 
@@ -54,7 +55,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       meta: { requestId: request.id, timestamp: new Date().toISOString() }
     });
     request.authUser = data.user;
-    if (request.routeOptions.url === "/api/v1/tenants") return;
+    if (request.routeOptions.url === "/api/v1/tenants" || request.routeOptions.url === "/api/v1/platform/admin/me") return;
     try {
       request.tenantContext = await resolveTenantContext(supabase.admin, data.user, parseTenantId(request.headers["x-tenant-id"]));
     } catch (error) {
@@ -72,5 +73,6 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   await app.register(membershipAdminRoutes, { prefix: "/api/v1", supabase });
   await app.register(roleRoutes, { prefix: "/api/v1", supabase });
   await app.register(roleUpdateRoutes, { prefix: "/api/v1", supabase });
+  await app.register(platformAdminRoutes, { prefix: "/api/v1", supabase });
   return app;
 }
