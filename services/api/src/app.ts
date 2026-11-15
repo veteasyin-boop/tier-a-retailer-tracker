@@ -55,7 +55,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       meta: { requestId: request.id, timestamp: new Date().toISOString() }
     });
     request.authUser = data.user;
-    if (request.routeOptions.url === "/api/v1/tenants" || request.routeOptions.url === "/api/v1/platform/admin/me") return;
+    if (request.routeOptions.url === "/api/v1/tenants" || request.routeOptions.url.startsWith("/api/v1/platform/admin/")) return;
     try {
       request.tenantContext = await resolveTenantContext(supabase.admin, data.user, parseTenantId(request.headers["x-tenant-id"]));
     } catch (error) {
