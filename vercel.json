@@ -5,6 +5,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/workspace-admin",
+      "destination": "/tenant-admin.html"
+    },
+    {
       "source": "/admin",
       "destination": "/admin.html"
     },
