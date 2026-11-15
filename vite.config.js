@@ -19,7 +19,8 @@ export default defineConfig(({ command, mode }) => {
       rollupOptions: {
         input: {
           main: resolve(process.cwd(), 'index.html'),
-          admin: resolve(process.cwd(), 'admin.html')
+          admin: resolve(process.cwd(), 'admin.html'),
+          tenantAdmin: resolve(process.cwd(), 'tenant-admin.html')
         }
       }
     }
