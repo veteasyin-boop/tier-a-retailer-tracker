@@ -65,13 +65,13 @@ async function membershipRoleEditor(membershipId){
   const roles=rolesResponse.data?.roles||[];
   const selected=new Set((member.roles||[]).map(r=>r.id));
   const layer=document.createElement('div');layer.className='overlay';
-  layer.innerHTML=\`<section class="dialog"><button class="close" type="button">×</button><p class="eyebrow">ACCESS CONTROL</p><h2>Assign roles</h2><p class="muted">\${esc(member.profile?.fullName||member.userId)}</p><form id="membership-roles-form"><div class="permission-list">\${roles.map(r=>\`<label class="check"><input type="checkbox" value="\${esc(r.id)}" \${selected.has(r.id)?'checked':''}><span><b>\${esc(r.name)}</b><small>\${esc(r.code)} · \${(r.permissions||[]).length} permissions</small></span></label>\`).join('')||'<p class="muted">No active roles are available.</p>'}</div><p class="note">You can assign only permissions that your own administrator account currently holds. You cannot change your own role assignments.</p><p id="membership-roles-error" class="error-text"></p><button class="primary full" type="submit">Save roles</button></form></section>\`;
+  layer.innerHTML=`<section class="dialog"><button class="close" type="button">×</button><p class="eyebrow">ACCESS CONTROL</p><h2>Assign roles</h2><p class="muted">${esc(member.profile?.fullName||member.userId)}</p><form id="membership-roles-form"><div class="permission-list">${roles.map(r=>`<label class="check"><input type="checkbox" value="${esc(r.id)}" ${selected.has(r.id)?'checked':''}><span><b>${esc(r.name)}</b><small>${esc(r.code)} · ${(r.permissions||[]).length} permissions</small></span></label>`).join('')||'<p class="muted">No active roles are available.</p>'}</div><p class="note">You can assign only permissions that your own administrator account currently holds. You cannot change your own role assignments.</p><p id="membership-roles-error" class="error-text"></p><button class="primary full" type="submit">Save roles</button></form></section>`;
   root.appendChild(layer);const close=()=>layer.remove();layer.querySelector('.close').onclick=close;layer.addEventListener('click',e=>{if(e.target===layer)close()});
   layer.querySelector('form').onsubmit=async e=>{
    e.preventDefault();const form=e.currentTarget,button=form.querySelector('button[type=submit]'),error=form.querySelector('#membership-roles-error');
    const roleIds=[...form.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value);
    button.disabled=true;button.textContent='Saving…';
-   try{await request(\`/memberships/\${encodeURIComponent(membershipId)}/roles\`,{method:'PUT',body:{roleIds}});close();toast('Employee roles updated.');await loadPage('employees')}
+   try{await request(`/memberships/${encodeURIComponent(membershipId)}/roles`,{method:'PUT',body:{roleIds}});close();toast('Employee roles updated.');await loadPage('employees')}
    catch(err){error.textContent=err.message;button.disabled=false;button.textContent='Save roles'}
   };
  }catch(error){toast(error.message,true)}
