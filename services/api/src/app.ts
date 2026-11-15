@@ -39,7 +39,8 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   });
   app.get("/health", async () => ({ success: true, data: { status: "ok" }, meta: { timestamp: new Date().toISOString(), version: "v1" } }));
   app.addHook("preHandler", async (request, reply) => {
-    if (request.routeOptions.url === "/health") return;
+    const routeUrl = request.routeOptions.url ?? "";
+    if (routeUrl === "/health") return;
     const bearerMatch = request.headers.authorization?.trim().match(/^Bearer\s+(\S+)$/i);
     if (!bearerMatch) return reply.code(401).send({
       success: false, error: { code: "UNAUTHORIZED", message: "A valid Bearer token is required", details: [] },
@@ -56,7 +57,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
       meta: { requestId: request.id, timestamp: new Date().toISOString() }
     });
     request.authUser = data.user;
-    if (request.routeOptions.url === "/api/v1/tenants" || request.routeOptions.url.startsWith("/api/v1/platform/admin/")) return;
+    if (routeUrl === "/api/v1/tenants" || routeUrl.startsWith("/api/v1/platform/admin/")) return;
     try {
       request.tenantContext = await resolveTenantContext(supabase.admin, data.user, parseTenantId(request.headers["x-tenant-id"]));
     } catch (error) {
