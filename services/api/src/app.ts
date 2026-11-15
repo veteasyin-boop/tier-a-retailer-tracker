@@ -38,6 +38,8 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     });
   });
   app.get("/health", async () => ({ success: true, data: { status: "ok" }, meta: { timestamp: new Date().toISOString(), version: "v1" } }));
+  // Vercel serverless catch-all is mounted beneath /api.
+  app.get("/api/health", async () => ({ success: true, data: { status: "ok" }, meta: { timestamp: new Date().toISOString(), version: "v1" } }));
   app.addHook("preHandler", async (request, reply) => {
     const routeUrl = request.routeOptions.url ?? "";
     if (routeUrl === "/health") return;
