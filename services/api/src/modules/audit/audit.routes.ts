@@ -36,7 +36,7 @@ export const auditRoutes: FastifyPluginAsync<RouteOptions> = async (app, { supab
         const decoded = JSON.parse(Buffer.from(parsed.data.cursor, "base64url").toString("utf8")) as unknown;
         const cursorResult = auditCursorSchema.safeParse(decoded);
         if (!cursorResult.success) throw new Error("Invalid cursor");
-        cursor = cursorResult.data;
+        cursor = cursorResult.data as unknown as { createdAt: string; id: string };
       } catch {
         return reply.code(400).send({
           success: false,
