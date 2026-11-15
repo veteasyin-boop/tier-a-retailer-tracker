@@ -66,8 +66,9 @@ async function memberAssignmentEditor(membershipId){
   root.appendChild(layer);const close=()=>layer.remove();layer.querySelector('.close').onclick=close;layer.addEventListener('click',e=>{if(e.target===layer)close()});
   layer.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector('button[type=submit]'),err=f.querySelector('#assignment-error'),fd=new FormData(f);b.disabled=true;b.textContent='Saving…';
    try{
-    await request(`/memberships/${encodeURIComponent(membershipId)}/organization`,{method:'PUT',body:{membershipId,orgUnitId:fd.get('orgUnitId'),designationId:fd.get('designationId')||null}});
-    if(can('reporting.manage')&&fd.get('managerMembershipId'))await request(`/memberships/${encodeURIComponent(membershipId)}/reporting`,{method:'PUT',body:{membershipId,managerMembershipId:fd.get('managerMembershipId'),relationshipType:fd.get('relationshipType')}});
+    const assignmentPayload={membershipId,orgUnitId:fd.get('orgUnitId'),designationId:fd.get('designationId')||null};
+    if(can('reporting.manage')&&fd.get('managerMembershipId')){assignmentPayload.managerMembershipId=fd.get('managerMembershipId');assignmentPayload.relationshipType=fd.get('relationshipType');}
+    await request(`/memberships/${encodeURIComponent(membershipId)}/organization`,{method:'PUT',body:assignmentPayload});
     close();toast('Employee placement saved.');await loadPage('employees');
    }catch(error){err.textContent=error.message;b.disabled=false;b.textContent='Save assignment'}
   };
