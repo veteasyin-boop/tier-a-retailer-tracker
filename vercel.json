@@ -57,6 +57,9 @@
   "functions": {
     "api/[...path].ts": {
       "maxDuration": 30
+    },
+    "api/v1/[...path].ts": {
+      "maxDuration": 30
     }
   }
 }
