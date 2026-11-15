@@ -107,10 +107,16 @@ export async function resolveTenantContext(
     throw new TenantContextError(500, "ORG_CONTEXT_LOOKUP_FAILED", "Unable to resolve organizational context");
   }
 
-  const placement = placementResult.data as {
-    org_units?: { id: string; code: string; name: string; parent_id: string | null } | null;
-    designations?: { id: string; code: string; name: string } | null;
+  // PostgREST can represent a nested relation as an object or an array
+  // depending on generated relationship metadata. Normalize both forms.
+  const placement = placementResult.data as unknown as {
+    org_units?: { id: string; code: string; name: string; parent_id: string | null }
+      | { id: string; code: string; name: string; parent_id: string | null }[] | null;
+    designations?: { id: string; code: string; name: string }
+      | { id: string; code: string; name: string }[] | null;
   } | null;
+  const orgUnit = Array.isArray(placement?.org_units) ? placement.org_units[0] : placement?.org_units;
+  const designation = Array.isArray(placement?.designations) ? placement.designations[0] : placement?.designations;
 
   const scopeRows = (scopesResult.data ?? []) as { org_unit_id: string }[];
   const scopedOrgUnitIds: string[] = [...new Set(scopeRows.map((row) => row.org_unit_id))].sort();
@@ -121,13 +127,13 @@ export async function resolveTenantContext(
     membershipId,
     roleCodes,
     permissions,
-    primaryOrgUnit: placement?.org_units ? {
-      id: placement.org_units.id,
-      code: placement.org_units.code,
-      name: placement.org_units.name,
-      parentId: placement.org_units.parent_id
+    primaryOrgUnit: orgUnit ? {
+      id: orgUnit.id,
+      code: orgUnit.code,
+      name: orgUnit.name,
+      parentId: orgUnit.parent_id
     } : null,
-    designation: placement?.designations ?? null,
+    designation: designation ?? null,
     scopedOrgUnitIds
   };
 }
