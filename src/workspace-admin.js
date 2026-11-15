@@ -47,10 +47,34 @@ async function employees(content){
  const draw=()=>{const q=document.getElementById('employee-search').value.toLowerCase(),s=document.getElementById('employee-status').value;document.getElementById('employee-table').innerHTML=employeeTable(rows.filter(x=>(!s||x.status===s)&&[x.profile?.fullName,x.userId,...(x.roles||[]).map(y=>y.name)].join(' ').toLowerCase().includes(q)));bindMemberActions()};
  document.getElementById('employee-search').addEventListener('input',draw);document.getElementById('employee-status').addEventListener('change',draw);bindMemberActions();
 }
-function employeeTable(rows){if(!rows.length)return '<div class="panel empty">No employees match this filter.</div>';return `<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Roles</th><th>Organisation</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(m=>`<tr><td><b>${esc(m.profile?.fullName||'Name not set')}</b><small>${esc(m.userId)}</small></td><td>${esc((m.roles||[]).map(r=>r.name).join(', ')||'No roles')}</td><td>${esc(m.organization?.unit?.name||'Not assigned')}<small>${esc(m.organization?.designation?.name||'')}</small></td><td><span class="pill ${m.status}">${esc(m.status)}</span></td><td><div class="row-actions">${can('membership.manage')&&m.status!=='invited'? `<button class="action" data-membership="${esc(m.id)}" data-status="${esc(m.status)}">${m.status==='active'?'Suspend':'Reactivate'}</button>`:''}${can('membership.manage')? `<button class="secondary" data-assign-membership="${esc(m.id)}">Assign</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`}
+function employeeTable(rows){if(!rows.length)return '<div class="panel empty">No employees match this filter.</div>';return `<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Roles</th><th>Organisation</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(m=>`<tr><td><b>${esc(m.profile?.fullName||'Name not set')}</b><small>${esc(m.userId)}</small></td><td>${esc((m.roles||[]).map(r=>r.name).join(', ')||'No roles')}</td><td>${esc(m.organization?.unit?.name||'Not assigned')}<small>${esc(m.organization?.designation?.name||'')}</small></td><td><span class="pill ${m.status}">${esc(m.status)}</span></td><td><div class="row-actions">${can('membership.manage')&&m.status!=='invited'? `<button class="action" data-membership="${esc(m.id)}" data-status="${esc(m.status)}">${m.status==='active'?'Suspend':'Reactivate'}</button>`:''}${can('membership.manage')? `<button class="secondary" data-assign-membership="${esc(m.id)}">Assign</button>`:''}${can('role.manage')? `<button class="secondary" data-member-roles="${esc(m.id)}">Roles</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`}
 function bindMemberActions(){
  root.querySelectorAll('[data-membership]').forEach(b=>b.addEventListener('click',async()=>{const active=b.dataset.status==='active',next=active?'suspended':'active';if(!confirm(`${active?'Suspend':'Reactivate'} this employee's tenant membership?`))return;b.disabled=true;try{await request(`/memberships/${encodeURIComponent(b.dataset.membership)}/status`,{method:'PATCH',body:{status:next}});toast('Membership status updated.');await loadPage('employees')}catch(e){toast(e.message,true);b.disabled=false}}));
  root.querySelectorAll('[data-assign-membership]').forEach(b=>b.addEventListener('click',()=>memberAssignmentEditor(b.dataset.assignMembership)));
+ root.querySelectorAll('[data-member-roles]').forEach(b=>b.addEventListener('click',()=>membershipRoleEditor(b.dataset.memberRoles)));
+}
+
+async function membershipRoleEditor(membershipId){
+ try{
+  const [membersResponse,rolesResponse]=await Promise.all([
+   request('/memberships?limit=100&offset=0'),
+   request('/roles?limit=100&offset=0&includeInactive=false')
+  ]);
+  const member=(membersResponse.data||[]).find(x=>x.id===membershipId);
+  if(!member)throw new Error('Employee membership was not found.');
+  const roles=rolesResponse.data?.roles||[];
+  const selected=new Set((member.roles||[]).map(r=>r.id));
+  const layer=document.createElement('div');layer.className='overlay';
+  layer.innerHTML=\`<section class="dialog"><button class="close" type="button">×</button><p class="eyebrow">ACCESS CONTROL</p><h2>Assign roles</h2><p class="muted">\${esc(member.profile?.fullName||member.userId)}</p><form id="membership-roles-form"><div class="permission-list">\${roles.map(r=>\`<label class="check"><input type="checkbox" value="\${esc(r.id)}" \${selected.has(r.id)?'checked':''}><span><b>\${esc(r.name)}</b><small>\${esc(r.code)} · \${(r.permissions||[]).length} permissions</small></span></label>\`).join('')||'<p class="muted">No active roles are available.</p>'}</div><p class="note">You can assign only permissions that your own administrator account currently holds. You cannot change your own role assignments.</p><p id="membership-roles-error" class="error-text"></p><button class="primary full" type="submit">Save roles</button></form></section>\`;
+  root.appendChild(layer);const close=()=>layer.remove();layer.querySelector('.close').onclick=close;layer.addEventListener('click',e=>{if(e.target===layer)close()});
+  layer.querySelector('form').onsubmit=async e=>{
+   e.preventDefault();const form=e.currentTarget,button=form.querySelector('button[type=submit]'),error=form.querySelector('#membership-roles-error');
+   const roleIds=[...form.querySelectorAll('input[type=checkbox]:checked')].map(x=>x.value);
+   button.disabled=true;button.textContent='Saving…';
+   try{await request(\`/memberships/\${encodeURIComponent(membershipId)}/roles\`,{method:'PUT',body:{roleIds}});close();toast('Employee roles updated.');await loadPage('employees')}
+   catch(err){error.textContent=err.message;button.disabled=false;button.textContent='Save roles'}
+  };
+ }catch(error){toast(error.message,true)}
 }
 async function memberAssignmentEditor(membershipId){
  try{
