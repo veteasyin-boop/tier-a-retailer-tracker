@@ -11,12 +11,8 @@
     "test:security": "node --test tests/security/*.test.js"
   },
   "dependencies": {
-    "@fastify/cors": "^10.0.2",
-    "@fastify/rate-limit": "^10.2.1",
     "@supabase/supabase-js": "^2.117.2",
-    "fastify": "^5.2.1",
-    "xlsx": "^0.18.5",
-    "zod": "^3.24.2"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "jsdom": "^29.1.1",
