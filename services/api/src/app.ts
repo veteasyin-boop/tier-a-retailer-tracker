@@ -6,6 +6,7 @@ import type { AppConfig } from "./config.js";
 import type { SupabaseClients } from "./platform/supabase.js";
 import { parseTenantId, resolveTenantContext, TenantContextError } from "./modules/identity/tenant-context.js";
 import { organizationRoutes } from "./modules/organization/organization.routes.js";
+import { organizationAdminRoutes } from "./modules/organization/organization-admin.routes.js";
 import { auditRoutes } from "./modules/audit/audit.routes.js";
 import { tenantRoutes } from "./modules/identity/tenant.routes.js";
 import { membershipRoutes } from "./modules/memberships/membership.routes.js";
@@ -67,6 +68,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
     }
   });
   await app.register(organizationRoutes, { prefix: "/api/v1/organization", supabase });
+  await app.register(organizationAdminRoutes, { prefix: "/api/v1/organization", supabase });
   await app.register(auditRoutes, { prefix: "/api/v1", supabase });
   await app.register(tenantRoutes, { prefix: "/api/v1", supabase });
   await app.register(membershipRoutes, { prefix: "/api/v1", supabase });
