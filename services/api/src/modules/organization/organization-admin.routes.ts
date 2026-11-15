@@ -14,7 +14,7 @@ const recordSchema=z.object({
  isActive:z.boolean().default(true)
 }).strict();
 const idSchema=z.object({id:z.string().uuid()}).strict();
-const assignmentSchema=z.object({membershipId:z.string().uuid(),orgUnitId:z.string().uuid(),designationId:z.string().uuid().nullable()}).strict();
+const assignmentSchema=z.object({membershipId:z.string().uuid(),orgUnitId:z.string().uuid(),designationId:z.string().uuid().nullable(),managerMembershipId:z.string().uuid().nullable().optional(),relationshipType:z.enum(["primary","dotted"]).optional()}).strict();
 const reportingSchema=z.object({membershipId:z.string().uuid(),managerMembershipId:z.string().uuid(),relationshipType:z.enum(["primary","dotted"])}).strict();
 const meta=(request:any)=>({requestId:request.id,timestamp:new Date().toISOString(),version:"v1"});
 function failure(reply:any,request:any,status:number,code:string,message:string){return reply.code(status).send({success:false,error:{code,message,details:[]},meta:meta(request)});}
@@ -47,7 +47,7 @@ export const organizationAdminRoutes:FastifyPluginAsync<Options>=async(app,{supa
   const p=z.object({membershipId:z.string().uuid()}).safeParse(request.params),b=assignmentSchema.safeParse(request.body);
   if(!p.success||!b.success)return failure(reply,request,400,"INVALID_ASSIGNMENT","Membership or organization assignment is invalid");
   const c=request.tenantContext;if(!c)return failure(reply,request,401,"UNAUTHORIZED","Tenant context is required");
-  const {data,error}=await supabase.admin.rpc("set_tenant_member_org_assignment",{p_tenant_id:c.tenantId,p_actor_user_id:c.userId,p_request_id:request.id,p_membership_id:p.data.membershipId,p_org_unit_id:b.data.orgUnitId,p_designation_id:b.data.designationId});
+  const {data,error}=await supabase.admin.rpc("set_tenant_member_org_and_reporting",{p_tenant_id:c.tenantId,p_actor_user_id:c.userId,p_request_id:request.id,p_membership_id:p.data.membershipId,p_org_unit_id:b.data.orgUnitId,p_designation_id:b.data.designationId,p_manager_membership_id:b.data.managerMembershipId??null,p_relationship_type:b.data.relationshipType??"primary"});
   if(error)return mapError(error,reply,request);
   return {success:true,data,meta:meta(request)};
  });
