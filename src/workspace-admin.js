@@ -47,8 +47,33 @@ async function employees(content){
  const draw=()=>{const q=document.getElementById('employee-search').value.toLowerCase(),s=document.getElementById('employee-status').value;document.getElementById('employee-table').innerHTML=employeeTable(rows.filter(x=>(!s||x.status===s)&&[x.profile?.fullName,x.userId,...(x.roles||[]).map(y=>y.name)].join(' ').toLowerCase().includes(q)));bindMemberActions()};
  document.getElementById('employee-search').addEventListener('input',draw);document.getElementById('employee-status').addEventListener('change',draw);bindMemberActions();
 }
-function employeeTable(rows){if(!rows.length)return '<div class="panel empty">No employees match this filter.</div>';return `<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Roles</th><th>Organisation</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(m=>`<tr><td><b>${esc(m.profile?.fullName||'Name not set')}</b><small>${esc(m.userId)}</small></td><td>${esc((m.roles||[]).map(r=>r.name).join(', ')||'No roles')}</td><td>${esc(m.organization?.unit?.name||'Not assigned')}<small>${esc(m.organization?.designation?.name||'')}</small></td><td><span class="pill ${m.status}">${esc(m.status)}</span></td><td>${can('membership.manage')&&m.status!=='invited'? `<button class="action" data-membership="${esc(m.id)}" data-status="${esc(m.status)}">${m.status==='active'?'Suspend':'Reactivate'}</button>`:'—'}</td></tr>`).join('')}</tbody></table></div>`}
-function bindMemberActions(){root.querySelectorAll('[data-membership]').forEach(b=>b.addEventListener('click',async()=>{const active=b.dataset.status==='active',next=active?'suspended':'active';if(!confirm(`${active?'Suspend':'Reactivate'} this employee's tenant membership?`))return;b.disabled=true;try{await request(`/memberships/${encodeURIComponent(b.dataset.membership)}/status`,{method:'PATCH',body:{status:next}});toast('Membership status updated.');await loadPage('employees')}catch(e){toast(e.message,true);b.disabled=false}}))}
+function employeeTable(rows){if(!rows.length)return '<div class="panel empty">No employees match this filter.</div>';return `<div class="table-wrap"><table><thead><tr><th>Employee</th><th>Roles</th><th>Organisation</th><th>Status</th><th>Action</th></tr></thead><tbody>${rows.map(m=>`<tr><td><b>${esc(m.profile?.fullName||'Name not set')}</b><small>${esc(m.userId)}</small></td><td>${esc((m.roles||[]).map(r=>r.name).join(', ')||'No roles')}</td><td>${esc(m.organization?.unit?.name||'Not assigned')}<small>${esc(m.organization?.designation?.name||'')}</small></td><td><span class="pill ${m.status}">${esc(m.status)}</span></td><td><div class="row-actions">${can('membership.manage')&&m.status!=='invited'? `<button class="action" data-membership="${esc(m.id)}" data-status="${esc(m.status)}">${m.status==='active'?'Suspend':'Reactivate'}</button>`:''}${can('membership.manage')? `<button class="secondary" data-assign-membership="${esc(m.id)}">Assign</button>`:''}</div></td></tr>`).join('')}</tbody></table></div>`}
+function bindMemberActions(){
+ root.querySelectorAll('[data-membership]').forEach(b=>b.addEventListener('click',async()=>{const active=b.dataset.status==='active',next=active?'suspended':'active';if(!confirm(`${active?'Suspend':'Reactivate'} this employee's tenant membership?`))return;b.disabled=true;try{await request(`/memberships/${encodeURIComponent(b.dataset.membership)}/status`,{method:'PATCH',body:{status:next}});toast('Membership status updated.');await loadPage('employees')}catch(e){toast(e.message,true);b.disabled=false}}));
+ root.querySelectorAll('[data-assign-membership]').forEach(b=>b.addEventListener('click',()=>memberAssignmentEditor(b.dataset.assignMembership)));
+}
+async function memberAssignmentEditor(membershipId){
+ try{
+  const [u,d,m]=await Promise.all([request('/organization/units?limit=100&offset=0'),request('/organization/designations?limit=100&offset=0'),request('/memberships?limit=100&offset=0&status=active')]);
+  const members=m.data||[],current=members.find(x=>x.id===membershipId),units=u.data||[],designations=d.data||[];
+  const managerOptions=members.filter(x=>x.id!==membershipId).map(x=>`<option value="${esc(x.id)}">${esc(x.profile?.fullName||x.userId)}</option>`).join('');
+  const layer=document.createElement('div');layer.className='overlay';
+  layer.innerHTML=`<section class="dialog"><button class="close" type="button">×</button><p class="eyebrow">EMPLOYEE PLACEMENT</p><h2>Assign employee</h2><p class="muted">${esc(current?.profile?.fullName||current?.userId||'Selected member')}</p><form id="assignment-form">
+  <label>Organizational unit<select name="orgUnitId" required><option value="">Select unit</option>${units.map(x=>`<option value="${esc(x.id)}" ${current?.organization?.unit?.id===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
+  <label>Designation<select name="designationId"><option value="">No designation</option>${designations.map(x=>`<option value="${esc(x.id)}" ${current?.organization?.designation?.id===x.id?'selected':''}>${esc(x.name)}</option>`).join('')}</select></label>
+  <label>Reports to<select name="managerMembershipId"><option value="">No reporting manager</option>${managerOptions}</select></label>
+  <label>Relationship type<select name="relationshipType"><option value="primary">Primary reporting</option><option value="dotted">Dotted-line reporting</option></select></label>
+  <p id="assignment-error" class="error-text"></p><button class="primary full" type="submit">Save assignment</button></form></section>`;
+  root.appendChild(layer);const close=()=>layer.remove();layer.querySelector('.close').onclick=close;layer.addEventListener('click',e=>{if(e.target===layer)close()});
+  layer.querySelector('form').onsubmit=async e=>{e.preventDefault();const f=e.currentTarget,b=f.querySelector('button[type=submit]'),err=f.querySelector('#assignment-error'),fd=new FormData(f);b.disabled=true;b.textContent='Saving…';
+   try{
+    await request(`/memberships/${encodeURIComponent(membershipId)}/organization`,{method:'PUT',body:{membershipId,orgUnitId:fd.get('orgUnitId'),designationId:fd.get('designationId')||null}});
+    if(fd.get('managerMembershipId'))await request(`/memberships/${encodeURIComponent(membershipId)}/reporting`,{method:'PUT',body:{membershipId,managerMembershipId:fd.get('managerMembershipId'),relationshipType:fd.get('relationshipType')}});
+    close();toast('Employee placement saved.');await loadPage('employees');
+   }catch(error){err.textContent=error.message;b.disabled=false;b.textContent='Save assignment'}
+  };
+ }catch(error){toast(error.message,true)}
+}
 async function roles(content){
  if(!can('role.manage')){content.innerHTML='<div class="panel">You do not have permission to manage roles.</div>';return}
  const r=await request('/roles?limit=100&offset=0&includeInactive=true');roleData=r.data;
