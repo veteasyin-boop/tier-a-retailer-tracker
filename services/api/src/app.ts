@@ -42,7 +42,7 @@ export async function buildApp({ config, supabase }: Dependencies): Promise<Fast
   app.get("/api/health", async () => ({ success: true, data: { status: "ok" }, meta: { timestamp: new Date().toISOString(), version: "v1" } }));
   app.addHook("preHandler", async (request, reply) => {
     const routeUrl = request.routeOptions.url ?? "";
-    if (routeUrl === "/health") return;
+    if (routeUrl === "/health" || routeUrl === "/api/health") return;
     const bearerMatch = request.headers.authorization?.trim().match(/^Bearer\s+(\S+)$/i);
     if (!bearerMatch) return reply.code(401).send({
       success: false, error: { code: "UNAUTHORIZED", message: "A valid Bearer token is required", details: [] },
